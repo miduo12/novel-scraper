@@ -8,6 +8,7 @@ from pathlib import Path
 from . import __version__
 from .crawler import CrawlOptions, NovelCrawler
 from .exceptions import ScraperError
+from .text_cleaner import BookCleaner, CleaningMode
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     crawl.add_argument("--force", action="store_true", help="忽略断点，重新抓取指定章节")
 
+    clean = subparsers.add_parser("clean", help="检测并保守清洗已经下载的小说")
+    clean.add_argument("book_dir", type=Path, help="包含 chapters/ 的小说文件夹")
+    clean.add_argument(
+        "--mode",
+        choices=[mode.value for mode in CleaningMode],
+        default=CleaningMode.DETECT.value,
+        help="detect 仅检测，auto 仅自动修复高置信度问题",
+    )
+    clean.add_argument("--config-dir", type=Path, default=None, help="可选的自定义规则目录")
+
     return parser
 
 
@@ -101,6 +112,24 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "crawl":
             with NovelCrawler.from_url(args.url, _options(args)) as crawler:
                 crawler.crawl_book(args.url)
+            return 0
+
+        if args.command == "clean":
+            cleaner = BookCleaner(user_config_dir=args.config_dir)
+            result = cleaner.process(
+                args.book_dir,
+                CleaningMode(args.mode),
+                progress_callback=lambda progress: logger.info(
+                    "[%d/%d] %s",
+                    progress.current,
+                    progress.total,
+                    progress.chapter,
+                ),
+            )
+            print(f"检测完成：{result.total_issues} 个问题，自动修改 {result.applied_count} 处")
+            print(f"报告目录：{result.reports_dir}")
+            if result.cleaned_book_path:
+                print(f"清洗版 TXT：{result.cleaned_book_path}")
             return 0
     except KeyboardInterrupt:
         logger.warning("用户中断，已保存现有断点")

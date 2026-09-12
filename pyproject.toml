@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deqixs-novel-scraper"
-version = "0.2.3"
+version = "0.3.0"
 description = "A resumable Python desktop novel scraper with a Deqixs adapter"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -33,7 +33,7 @@ novel-scraper-gui = "novel_scraper.gui:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-novel_scraper = ["resources/*"]
+novel_scraper = ["resources/*", "resources/config/*"]
 
 [tool.pytest.ini_options]
 addopts = "-ra"

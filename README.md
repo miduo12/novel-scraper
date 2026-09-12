@@ -72,6 +72,65 @@ python -m novel_scraper.gui
 python -m pip install -e ".[gui]" -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
+## 内容检测与保守清洗
+
+桌面端主窗口新增“内容检测/清洗”按钮，用于处理已经下载完成的小说。原始 `chapters/` 永远不会被覆盖。
+
+使用步骤：
+
+1. 选择一个包含 `chapters/` 的小说文件夹。
+2. 选择“仅检测”或“保守自动修复”。
+3. 点击开始，程序会逐章检测广告、标点、乱码和异常繁简体字符。
+4. 完成后可以打开报告目录，或直接使用 `cleaned/` 中的清洗版小说。
+
+两种模式：
+
+- `仅检测`：不修改正文，只生成报告。
+- `保守自动修复`：只修改高置信度问题；中低置信度问题只记录，始终保留原文。
+
+输出结构：
+
+```text
+小说下载/
+└── 玄鉴仙族/
+    ├── chapters/                 # 原始章节，始终保留
+    ├── cleaned/                  # 仅自动修复模式生成
+    │   ├── chapters/
+    │   └── 玄鉴仙族_清洗版.txt
+    └── reports/
+        ├── clean_report.json
+        ├── clean_report.csv
+        ├── clean_report.txt
+        └── clean_log.json       # 所有自动修改的完整记录
+```
+
+命令行用法：
+
+```powershell
+..venvScriptspython.exe -m novel_scraper clean "下载目录玄鉴仙族" --mode detect
+..venvScriptspython.exe -m novel_scraper clean "下载目录玄鉴仙族" --mode auto
+```
+
+清洗规则默认位于 `src/novel_scraper/resources/config/`：
+
+- `ad_rules.json`：网站推广、URL 和广告关键词规则。
+- `whitelist.json`：如果正常正文被误报，把相关短语加入白名单。
+- `traditional_map.json`：用于报告繁简体异常的保守映射。
+
+可以通过 `--config-dir 自定义目录` 覆盖默认规则：
+
+```powershell
+..venvScriptspython.exe -m novel_scraper clean "下载目录玄鉴仙族" --mode auto --config-dir .config
+```
+
+保守原则：
+
+- 广告按段落判断，不因为出现“微信”“网站”等单个词就删除整段。
+- 标点只在中文上下文中修复，不修改英文句子、URL 和数字。
+- `！！`、`？？？` 等可能是作者表达的内容不会被自动删除。
+- 繁体字只有在全文风格和上下文证据明确时才自动修正，专有名词默认保留。
+- 程序不会做通用错别字猜测，无法确定的问题只写报告。
+
 ## 命令行版本
 
 桌面版和命令行版共用同一个爬虫核心，也可以继续使用 CLI：
@@ -125,7 +184,8 @@ src/novel_scraper/
 ├── gui_worker.py   GUI 后台线程
 ├── http.py         HTTP 客户端
 ├── parsers.py      HTML 正文解析
-└── storage.py      TXT、状态和失败记录
+├── storage.py      TXT、状态和失败记录
+└── text_cleaner/   内容检测、保守清洗和报告
 ```
 
 ## 合规说明

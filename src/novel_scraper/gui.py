@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import __version__
+from .cleaner_gui import CleanerDialog
 from .events import CrawlEvent
 from .gui_worker import CrawlWorker
 from .models import CrawlResult
@@ -173,9 +174,14 @@ class MainWindow(QMainWindow):
         self.open_button.setMinimumHeight(46)
         self.open_button.setEnabled(False)
         self.open_button.clicked.connect(self._open_output_dir)
+        self.clean_button = QPushButton("内容检测/清洗")
+        self.clean_button.setObjectName("secondaryButton")
+        self.clean_button.setMinimumHeight(46)
+        self.clean_button.clicked.connect(self._open_cleaner)
         action_row.addWidget(self.start_button)
         action_row.addWidget(self.stop_button)
         action_row.addWidget(self.open_button)
+        action_row.addWidget(self.clean_button)
         form.addLayout(action_row)
         root.addWidget(input_card)
 
@@ -471,6 +477,10 @@ class MainWindow(QMainWindow):
     def _append_log(self, message: str) -> None:
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.log_output.append(f"[{timestamp}] {message}")
+
+    def _open_cleaner(self) -> None:
+        dialog = CleanerDialog(self)
+        dialog.exec()
 
     def _open_output_dir(self) -> None:
         if self.last_output_path is None:
