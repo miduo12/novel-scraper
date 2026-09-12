@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from novel_scraper.text_cleaner.models import CleaningMode
+from novel_scraper.text_cleaner.blacklist import AdBlacklistStore
 from novel_scraper.text_cleaner.processor import BookCleaner
 
 
@@ -28,7 +29,9 @@ def test_detect_mode_keeps_original_and_writes_reports(tmp_path: Path) -> None:
     book_dir = make_book(tmp_path)
     original = (book_dir / "chapters" / "0001_第1章.txt").read_text(encoding="utf-8")
 
-    result = BookCleaner().process(book_dir, CleaningMode.DETECT)
+    result = BookCleaner(
+        blacklist_store=AdBlacklistStore(tmp_path / "blacklist.json")
+    ).process(book_dir, CleaningMode.DETECT)
 
     assert result.chapter_count == 2
     assert not (book_dir / "cleaned").exists()
@@ -42,7 +45,9 @@ def test_auto_mode_outputs_cleaned_files_and_preserves_original(tmp_path: Path) 
     book_dir = make_book(tmp_path)
     original = (book_dir / "chapters" / "0001_第1章.txt").read_text(encoding="utf-8")
 
-    result = BookCleaner().process(book_dir, CleaningMode.AUTO)
+    result = BookCleaner(
+        blacklist_store=AdBlacklistStore(tmp_path / "blacklist.json")
+    ).process(book_dir, CleaningMode.AUTO)
 
     assert (book_dir / "chapters" / "0001_第1章.txt").read_text(encoding="utf-8") == original
     assert result.cleaned_book_path is not None

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from .blacklist_gui import AdBlacklistDialog
 from .cleaner_worker import CleanWorker
 from .review_gui import ReviewDialog
 from .text_cleaner import BookCleanResult, CleanProgress, CleaningMode
@@ -86,8 +87,13 @@ class CleanerDialog(QDialog):
         self.review_button.setEnabled(False)
         self.review_button.setToolTip("自动修复完成后查看并逐条审核修改")
         self.review_button.clicked.connect(self._open_review)
+        self.blacklist_button = QPushButton("广告黑名单")
+        self.blacklist_button.setObjectName("secondaryButton")
+        self.blacklist_button.setToolTip("管理用户自定义广告文本，下次检测时自动比对")
+        self.blacklist_button.clicked.connect(self._open_blacklist)
         button_row.addWidget(self.start_button)
         button_row.addWidget(self.review_button)
+        button_row.addWidget(self.blacklist_button)
         button_row.addWidget(self.open_reports_button)
         button_row.addStretch(1)
         layout.addLayout(button_row)
@@ -187,6 +193,11 @@ class CleanerDialog(QDialog):
     def _append_log(self, message: str) -> None:
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.log_output.append(f"[{timestamp}] {message}")
+
+    def _open_blacklist(self) -> None:
+        dialog = AdBlacklistDialog(self)
+        dialog.exec()
+        self._append_log("广告黑名单已更新，下次检测会自动应用")
 
     def _open_review(self) -> None:
         if self.last_result is None:

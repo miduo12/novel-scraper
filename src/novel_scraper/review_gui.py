@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from .blacklist_gui import AdBlacklistDialog
 from .text_cleaner.models import BookCleanResult, TextIssue
 from .text_cleaner.review import (
     DiffChange,
@@ -121,9 +122,14 @@ class ReviewDialog(QDialog):
         self.open_reports = QPushButton("打开报告目录")
         self.open_reports.setObjectName("secondaryButton")
         self.open_reports.clicked.connect(self._open_reports)
+        blacklist_button = QPushButton("选中文本加入黑名单")
+        blacklist_button.setObjectName("secondaryButton")
+        blacklist_button.setToolTip("可在下方预览中选择广告文本后加入黑名单")
+        blacklist_button.clicked.connect(self._add_selected_to_blacklist)
         action_row.addWidget(select_all)
         action_row.addWidget(clear_all)
         action_row.addStretch(1)
+        action_row.addWidget(blacklist_button)
         action_row.addWidget(self.open_reports)
         action_row.addWidget(apply_button)
         layout.addLayout(action_row)
@@ -283,6 +289,11 @@ class ReviewDialog(QDialog):
             f"审核记录：{paths['decisions']}",
         )
         self._load_changes()
+
+    def _add_selected_to_blacklist(self) -> None:
+        selected = self.preview.textCursor().selectedText().strip()
+        dialog = AdBlacklistDialog(self, initial_text=selected)
+        dialog.exec()
 
     def _open_reports(self) -> None:
         reports = self.result.reports_dir or self.result.book_dir / "reports"

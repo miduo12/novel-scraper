@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from ..utils import atomic_write_text, safe_filename
+from .blacklist import AdBlacklistStore
 from .cleaner import ChapterCleaner
 from .models import BookCleanResult, CleanProgress, CleaningMode
 from .report import write_reports
@@ -21,9 +22,14 @@ class BookCleaner:
         *,
         rules: CleanerRules | None = None,
         user_config_dir: Path | None = None,
+        blacklist_store: AdBlacklistStore | None = None,
     ) -> None:
         self.rules = rules or load_rules(user_config_dir)
-        self.chapter_cleaner = ChapterCleaner(self.rules)
+        self.blacklist_store = blacklist_store or AdBlacklistStore()
+        self.chapter_cleaner = ChapterCleaner(
+            self.rules,
+            self.blacklist_store.load(),
+        )
 
     def process(
         self,

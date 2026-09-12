@@ -8,6 +8,7 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtWidgets import QApplication
 
+from novel_scraper.blacklist_gui import AdBlacklistDialog
 from novel_scraper.cleaner_gui import CleanerDialog
 from novel_scraper.review_gui import ReviewDialog
 from novel_scraper.text_cleaner.models import BookCleanResult, ChapterCleanResult, CleaningMode
@@ -43,5 +44,14 @@ def test_review_dialog_can_be_created(tmp_path) -> None:
     dialog = ReviewDialog(result)
     assert dialog.chapter_tree.topLevelItemCount() == 1
     assert dialog.change_table.rowCount() == 1
+    dialog.close()
+    app.processEvents()
+
+
+def test_blacklist_dialog_can_be_created() -> None:
+    app = QApplication.instance() or QApplication([])
+    dialog = AdBlacklistDialog(initial_text="测试广告文本，请访问网站。")
+    assert dialog.windowTitle() == "广告黑名单"
+    assert "测试广告文本" in dialog.text_input.toPlainText()
     dialog.close()
     app.processEvents()

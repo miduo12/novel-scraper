@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 
+from .blacklist import AdBlacklistEntry, find_blacklist_match
 from .models import Confidence, TextIssue
 from .rules import CleanerRules
 
@@ -22,12 +23,33 @@ def detect_ad(
     chapter: str,
     rules: CleanerRules,
     paragraph_index: int,
+    blacklist_entries: list[AdBlacklistEntry] | None = None,
 ) -> TextIssue | None:
     paragraph = paragraph.strip()
     if not paragraph:
         return None
     if any(term and term in paragraph for term in rules.whitelist):
         return None
+
+    if blacklist_entries:
+        match = find_blacklist_match(paragraph, blacklist_entries)
+        if match is not None:
+            high = match.score >= 0.88
+            return TextIssue(
+                chapter=chapter,
+                category="advertisement",
+                confidence=Confidence.HIGH if high else Confidence.MEDIUM,
+                confidence_score=match.score,
+                rule="user_ad_blacklist",
+                reason=(
+                    f"与用户广告黑名单高度重合（相似度 {match.score:.0%}，"
+                    f"匹配方式 {match.method}）"
+                ),
+                original=paragraph,
+                replacement="",
+                action="delete" if high else "report",
+                paragraph=paragraph_index,
+            )
 
     strong = _first_match(paragraph, rules.strong_phrases)
     if strong:

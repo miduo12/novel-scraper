@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from .ads import detect_ad
+from .blacklist import AdBlacklistEntry
 from .models import (
     ChapterCleanResult,
     CleaningMode,
@@ -25,8 +26,13 @@ def split_paragraphs(text: str) -> list[str]:
 
 
 class ChapterCleaner:
-    def __init__(self, rules: CleanerRules) -> None:
+    def __init__(
+        self,
+        rules: CleanerRules,
+        blacklist_entries: list[AdBlacklistEntry] | None = None,
+    ) -> None:
         self.rules = rules
+        self.blacklist_entries = blacklist_entries or []
 
     def clean_chapter(
         self,
@@ -58,7 +64,13 @@ class ChapterCleaner:
                 residue_issue.action = "report"
                 issues.append(residue_issue)
 
-            ad_issue = detect_ad(paragraph, title, self.rules, index)
+            ad_issue = detect_ad(
+                paragraph,
+                title,
+                self.rules,
+                index,
+                self.blacklist_entries,
+            )
             if ad_issue is not None:
                 if self._should_apply(ad_issue, mode):
                     ad_issue.applied = True
