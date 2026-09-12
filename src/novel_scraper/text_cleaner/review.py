@@ -24,7 +24,7 @@ class DiffChange:
     replacement: str
     category: str = "text_change"
     rule: str = "cleaned_text_diff"
-    reason: str = "自动清洗修改"
+    reason: str = "保守清洗产生的文本修改"
     confidence: str = Confidence.HIGH.value
 
     def to_dict(self, accepted: bool = True) -> dict[str, object]:
@@ -41,18 +41,34 @@ class DiffChange:
         }
 
 
+def build_review_target(chapter: ChapterCleanResult) -> str:
+    if chapter.cleaned_text != chapter.original_text:
+        return chapter.cleaned_text
+
+    proposed = chapter.original_text
+    for issue in chapter.issues:
+        if issue.confidence == Confidence.LOW:
+            continue
+        if not issue.original or issue.original == issue.replacement:
+            continue
+        if issue.original in proposed:
+            proposed = proposed.replace(issue.original, issue.replacement, 1)
+    return proposed
+
+
 def build_diff_changes(chapter: ChapterCleanResult) -> list[DiffChange]:
-    if chapter.original_text == chapter.cleaned_text:
+    target_text = build_review_target(chapter)
+    if chapter.original_text == target_text:
         return []
 
     original_paragraphs = split_paragraphs(chapter.original_text)
-    cleaned_paragraphs = split_paragraphs(chapter.cleaned_text)
+    target_paragraphs = split_paragraphs(target_text)
     original_spans = _paragraph_spans(chapter.original_text, original_paragraphs)
-    cleaned_spans = _paragraph_spans(chapter.cleaned_text, cleaned_paragraphs)
+    target_spans = _paragraph_spans(target_text, target_paragraphs)
     matcher = difflib.SequenceMatcher(
         None,
         original_paragraphs,
-        cleaned_paragraphs,
+        target_paragraphs,
         autojunk=False,
     )
     changes: list[DiffChange] = []
@@ -89,51 +105,51 @@ def build_diff_changes(chapter: ChapterCleanResult) -> list[DiffChange]:
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
             continue
-        if tag in {"replace", "insert", "delete"}:
-            original_block = original_paragraphs[i1:i2]
-            cleaned_block = cleaned_paragraphs[j1:j2]
-            paired = min(len(original_block), len(cleaned_block))
-            for offset in range(paired):
-                oi = i1 + offset
-                cj = j1 + offset
-                o_start, o_end = original_spans[oi]
-                c_start, c_end = cleaned_spans[cj]
-                add_change(
-                    chapter.original_text[o_start:o_end],
-                    chapter.cleaned_text[c_start:c_end],
-                    o_start,
-                    o_end,
-                    c_start,
-                    c_end,
-                    "replace",
-                )
-            for oi in range(i1 + paired, i2):
-                o_start, o_end = original_spans[oi]
-                add_change(
-                    chapter.original_text[o_start:o_end],
-                    "",
-                    o_start,
-                    o_end,
-                    cleaned_spans[j2][0] if j2 < len(cleaned_spans) else len(chapter.cleaned_text),
-                    cleaned_spans[j2][0] if j2 < len(cleaned_spans) else len(chapter.cleaned_text),
-                    "delete",
-                )
-            for cj in range(j1 + paired, j2):
-                c_start, c_end = cleaned_spans[cj]
-                insert_at = (
-                    original_spans[i2][0]
-                    if i2 < len(original_spans)
-                    else len(chapter.original_text)
-                )
-                add_change(
-                    "",
-                    chapter.cleaned_text[c_start:c_end],
-                    insert_at,
-                    insert_at,
-                    c_start,
-                    c_end,
-                    "insert",
-                )
+
+        original_block = original_paragraphs[i1:i2]
+        target_block = target_paragraphs[j1:j2]
+        paired = min(len(original_block), len(target_block))
+
+        for offset in range(paired):
+            oi = i1 + offset
+            tj = j1 + offset
+            o_start, o_end = original_spans[oi]
+            t_start, t_end = target_spans[tj]
+            add_change(
+                chapter.original_text[o_start:o_end],
+                target_text[t_start:t_end],
+                o_start,
+                o_end,
+                t_start,
+                t_end,
+                "replace",
+            )
+
+        for oi in range(i1 + paired, i2):
+            o_start, o_end = original_spans[oi]
+            insert_at = target_spans[j2][0] if j2 < len(target_spans) else len(target_text)
+            add_change(
+                chapter.original_text[o_start:o_end],
+                "",
+                o_start,
+                o_end,
+                insert_at,
+                insert_at,
+                "delete",
+            )
+
+        for tj in range(j1 + paired, j2):
+            t_start, t_end = target_spans[tj]
+            insert_at = original_spans[i2][0] if i2 < len(original_spans) else len(chapter.original_text)
+            add_change(
+                "",
+                target_text[t_start:t_end],
+                insert_at,
+                insert_at,
+                t_start,
+                t_end,
+                "insert",
+            )
 
     return changes
 
@@ -150,6 +166,7 @@ def _paragraph_spans(text: str, paragraphs: list[str]) -> list[tuple[int, int]]:
         cursor = end
     return spans
 
+
 def _matching_issue(
     original: str,
     replacement: str,
@@ -157,21 +174,22 @@ def _matching_issue(
 ) -> TextIssue | None:
     original_stripped = original.strip()
     replacement_stripped = replacement.strip()
+    fallback: TextIssue | None = None
     for issue in issues:
-        if not issue.applied:
-            continue
         issue_original = issue.original.strip()
         issue_replacement = issue.replacement.strip()
         if issue_original and (
             issue_original in original
             or original_stripped in issue_original
         ):
-            return issue
+            if issue.applied:
+                return issue
+            fallback = fallback or issue
         if issue_replacement and issue_replacement in replacement:
-            return issue
-        if not issue_original and replacement_stripped and replacement_stripped in issue_replacement:
-            return issue
-    return None
+            if issue.applied:
+                return issue
+            fallback = fallback or issue
+    return fallback
 
 
 def apply_review_decisions(
@@ -201,7 +219,10 @@ def write_reviewed_output(
     decisions: dict[str, dict[int, bool]],
 ) -> dict[str, Path]:
     if result.output_dir is None:
-        raise ValueError("仅检测模式没有可审核的清洗输出")
+        result.output_dir = result.book_dir / "cleaned"
+    if result.reports_dir is None:
+        result.reports_dir = result.book_dir / "reports"
+
     chapter_dir = result.output_dir / "chapters"
     chapter_dir.mkdir(parents=True, exist_ok=True)
     paths: dict[str, Path] = {}
@@ -217,12 +238,13 @@ def write_reviewed_output(
             accepted,
         )
         path = chapter_dir / chapter.source_path.name
-        path = safe_atomic_write_text(path, chapter.cleaned_text.strip() + "\n")
-        paths[chapter.source_path.name] = path
+        paths[chapter.source_path.name] = safe_atomic_write_text(
+            path,
+            chapter.cleaned_text.strip() + "\n",
+        )
 
-    cleaned_book = _write_cleaned_book(result)
-    paths["combined"] = cleaned_book
-    decisions_path = (result.reports_dir or result.book_dir / "reports") / "review_decisions.json"
+    paths["combined"] = _write_cleaned_book(result)
+    decisions_path = result.reports_dir / "review_decisions.json"
     _write_decisions(result, snapshots, decisions, decisions_path)
     paths["decisions"] = decisions_path
     return paths

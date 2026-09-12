@@ -164,9 +164,11 @@ class CleanerDialog(QDialog):
         self.worker = None
         self.start_button.setEnabled(True)
         self.open_reports_button.setEnabled(True)
-        self.review_button.setEnabled(
-            result.mode == CleaningMode.AUTO and result.applied_count > 0
-        )
+        self.review_button.setEnabled(result.total_issues > 0)
+        if result.mode == CleaningMode.DETECT and result.total_issues > 0:
+            self.review_button.setToolTip(
+                "仅检测模式也会生成修改建议，可逐条接受或取消后输出清洗版"
+            )
         self.progress_bar.setValue(self.progress_bar.maximum())
         summary = [
             f"章节：{result.chapter_count}",

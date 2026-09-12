@@ -90,3 +90,37 @@ def test_write_reviewed_output_preserves_original_and_writes_decisions(tmp_path:
         item for item in payload["chapters"][0]["changes"] if item["category"] == "punctuation"
     )
     assert punctuation_payload["accepted"] is False
+
+
+def test_detect_mode_suggestions_can_be_reviewed_and_applied(tmp_path: Path) -> None:
+    issue = TextIssue(
+        chapter="第1章",
+        category="punctuation",
+        confidence=Confidence.HIGH,
+        confidence_score=0.95,
+        rule="ascii_period_in_chinese",
+        reason="中文语境中的英文句号明显不匹配",
+        original=".",
+        replacement="。",
+        action="report",
+        applied=False,
+    )
+    chapter = ChapterCleanResult(
+        title="第1章",
+        source_path=tmp_path / "0001_第1章.txt",
+        original_text="他说道.",
+        cleaned_text="他说道.",
+        issues=[issue],
+    )
+    result = BookCleanResult(
+        book_dir=tmp_path,
+        mode=CleaningMode.DETECT,
+        chapter_count=1,
+        chapters=[chapter],
+        issue_counts={"punctuation": 1},
+    )
+    changes = build_diff_changes(chapter)
+    assert len(changes) == 1
+    assert changes[0].category == "punctuation"
+    paths = write_reviewed_output(result, {"第1章": {0: True}})
+    assert "他说道。" in paths["combined"].read_text(encoding="utf-8")
