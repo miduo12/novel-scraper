@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from .blacklist_gui import AdBlacklistDialog
 from .cleaner_worker import CleanWorker
+from .ui_utils import apply_adaptive_size
 from .review_gui import ReviewDialog
 from .text_cleaner import BookCleanResult, CleanProgress, CleaningMode
 
@@ -31,7 +32,7 @@ class CleanerDialog(QDialog):
         self.worker: CleanWorker | None = None
         self.last_result: BookCleanResult | None = None
         self.setWindowTitle("小说内容检测与保守清洗")
-        self.resize(820, 600)
+        apply_adaptive_size(self, 980, 720)
         self._build_ui()
 
     def _build_ui(self) -> None:

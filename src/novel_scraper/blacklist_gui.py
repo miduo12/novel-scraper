@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from .text_cleaner.blacklist import AdBlacklistStore, normalize_match_text
+from .ui_utils import apply_adaptive_size
 
 
 class AdBlacklistDialog(QDialog):
@@ -24,7 +25,7 @@ class AdBlacklistDialog(QDialog):
         super().__init__(parent)
         self.store = AdBlacklistStore()
         self.setWindowTitle("广告黑名单")
-        self.resize(760, 560)
+        apply_adaptive_size(self, 820, 620)
         self._build_ui()
         self._refresh()
         if initial_text:

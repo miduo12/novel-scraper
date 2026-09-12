@@ -33,6 +33,7 @@ from .cleaner_gui import CleanerDialog
 from .events import CrawlEvent
 from .gui_worker import CrawlWorker
 from .models import CrawlResult
+from .ui_utils import apply_adaptive_size
 
 APP_NAME = "小说下载器"
 APP_ORGANIZATION = "miduo12"
@@ -60,8 +61,8 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         self.setWindowTitle(f"{APP_NAME} {__version__}")
-        self.resize(900, 680)
-        self.setMinimumSize(760, 560)
+        apply_adaptive_size(self, 1120, 830)
+        self.setMinimumSize(880, 650)
 
         icon_path = resource_path("app.png")
         if icon_path.exists():
@@ -228,6 +229,7 @@ class MainWindow(QMainWindow):
         self.log_output.setReadOnly(True)
         self.log_output.document().setMaximumBlockCount(1000)
         self.log_output.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.log_output.setMinimumHeight(180)
         root.addWidget(self.log_output, 1)
 
         footer = QLabel("请合理设置请求频率，仅用于个人学习与备份，并遵守目标网站的服务条款。")
@@ -297,6 +299,12 @@ class MainWindow(QMainWindow):
         range_enabled = str(self.settings.value("range_enabled", "false")).lower() == "true"
         self.range_checkbox.setChecked(range_enabled)
         self._toggle_chapter_range(range_enabled)
+
+        saved_geometry = self.settings.value("window_geometry")
+        if saved_geometry:
+            self.restoreGeometry(saved_geometry)
+            if self.width() < 880 or self.height() < 700:
+                apply_adaptive_size(self, 1120, 830)
 
     def _save_settings(self) -> None:
         self.settings.setValue("last_url", self.url_input.text().strip())
@@ -515,6 +523,7 @@ class MainWindow(QMainWindow):
                 return
             event.ignore()
             return
+        self.settings.setValue("window_geometry", self.saveGeometry())
         event.accept()
 
 

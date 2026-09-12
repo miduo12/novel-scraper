@@ -24,6 +24,7 @@ def test_main_window_can_be_created() -> None:
     assert not window.range_checkbox.isChecked()
     assert not window.start_spin.isEnabled()
     assert window.speed_combo.currentData() == 0.2
+    assert window.minimumHeight() >= 650
     dialog = CleanerDialog(window)
     assert dialog.windowTitle() == "小说内容检测与保守清洗"
     assert dialog.mode_combo.count() == 2
@@ -44,6 +45,7 @@ def test_review_dialog_can_be_created(tmp_path) -> None:
     dialog = ReviewDialog(result)
     assert dialog.chapter_tree.topLevelItemCount() == 1
     assert dialog.change_table.rowCount() == 1
+    assert dialog.chapter_tree.topLevelItem(0).toolTip(0).startswith("<html")
     dialog.close()
     app.processEvents()
 
