@@ -10,6 +10,7 @@ from .models import (
     TextIssue,
 )
 from .punctuation import clean_paragraph as clean_punctuation
+from .punctuation import detect_web_residue
 from .rules import CleanerRules
 from .typo import TextStyleProfile, find_issues as find_typo_issues
 
@@ -40,6 +41,23 @@ class ChapterCleaner:
         changed = False
 
         for index, paragraph in enumerate(paragraphs):
+            residue_issue = detect_web_residue(
+                paragraph,
+                title,
+                index,
+                len(paragraphs),
+            )
+            if residue_issue is not None:
+                if self._should_apply(residue_issue, mode):
+                    residue_issue.applied = True
+                    residue_issue.action = "remove"
+                    paragraphs[index] = ""
+                    changed = True
+                    issues.append(residue_issue)
+                    continue
+                residue_issue.action = "report"
+                issues.append(residue_issue)
+
             ad_issue = detect_ad(paragraph, title, self.rules, index)
             if ad_issue is not None:
                 if self._should_apply(ad_issue, mode):

@@ -1,5 +1,5 @@
 from novel_scraper.text_cleaner.models import Confidence
-from novel_scraper.text_cleaner.punctuation import clean_paragraph
+from novel_scraper.text_cleaner.punctuation import clean_paragraph, detect_web_residue
 
 
 def test_fixes_ascii_comma_in_chinese_context() -> None:
@@ -39,3 +39,28 @@ def test_keeps_english_sentence() -> None:
 def test_keeps_english_content_inside_chinese_quotes() -> None:
     text, _ = clean_paragraph('他说：“Hello, world.”', "第1章", 0)
     assert text == '他说：“Hello, world.”'
+
+
+def test_cleans_mixed_dashes_and_escaped_closing_quote() -> None:
+    source = '「但———-可惜了，身为穷人的他，注定会成为我们的狗。\\"'
+    text, issues = clean_paragraph(source, "第1章", 0)
+    assert text == "「但——可惜了，身为穷人的他，注定会成为我们的狗。」"
+    assert any(issue.rule == "mixed_dash_sequence" for issue in issues)
+    assert any(issue.rule == "escaped_quote_artifact" for issue in issues)
+
+
+def test_detects_standalone_page_number_and_escape_fragment() -> None:
+    number_issue = detect_web_residue("1", "第1章", 0, paragraph_count=5)
+    escape_issue = detect_web_residue('\\"', "第1章", 1, paragraph_count=5)
+
+    assert number_issue is not None
+    assert number_issue.confidence == Confidence.HIGH
+    assert number_issue.action == "remove"
+    assert escape_issue is not None
+    assert escape_issue.confidence == Confidence.HIGH
+
+
+def test_cleans_multiple_backslashes_before_quote() -> None:
+    source = '「但———-可惜了，注定会成为我们的狗。\\\\"'
+    text, _ = clean_paragraph(source, "第1章", 0)
+    assert text == "「但——可惜了，注定会成为我们的狗。」"

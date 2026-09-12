@@ -5,8 +5,10 @@ import re
 from .models import Confidence, TextIssue
 
 _CJK = r"\u4e00-\u9fff"
-_CJK_OR_QUOTE = r"\u4e00-\u9fff\u201c\u201d\"'"
+_CJK_OR_QUOTE = "\u4e00-\u9fff\u201c\u201d\"'"
 _URL_OR_EMAIL = re.compile(r"(?:https?://|www\.|[\w.+-]+@[\w.-]+\.\w+)")
+_RESIDUE_NUMBER = re.compile(r"^[\s\\\"']*(\d{1,4})[\s\\\"']*$")
+_ARTIFACT_ONLY = re.compile(r"^[\s\\\"']+$")
 
 
 def _issue(
@@ -50,7 +52,6 @@ def _apply(
     if not matches:
         return text
     for match in matches:
-        replacement_text = match.expand(replacement)
         issues.append(
             _issue(
                 chapter,
@@ -60,7 +61,7 @@ def _apply(
                 confidence,
                 score,
                 match.group(0),
-                replacement_text,
+                match.expand(replacement),
             )
         )
     return pattern.sub(replacement, text)
@@ -74,6 +75,56 @@ def _is_english_or_url(paragraph: str) -> bool:
     return latin_count >= 20 and latin_count > cjk_count * 2
 
 
+def detect_web_residue(
+    paragraph: str,
+    chapter: str,
+    paragraph_index: int,
+    paragraph_count: int,
+) -> TextIssue | None:
+    stripped = paragraph.strip()
+    if not stripped:
+        return None
+
+    number_match = _RESIDUE_NUMBER.match(stripped)
+    if number_match:
+        number = int(number_match.group(1))
+        if number <= 99 and paragraph_count >= 3:
+            confidence = Confidence.HIGH
+            score = 0.95
+            reason = "独立数字行明显不符合正文结构，疑似网页页码残留"
+        else:
+            confidence = Confidence.MEDIUM
+            score = 0.6
+            reason = "独立数字行可能是正文内容，保留原文并记录"
+        return TextIssue(
+            chapter=chapter,
+            category="web_residue",
+            confidence=confidence,
+            confidence_score=score,
+            rule="standalone_page_number",
+            reason=reason,
+            original=stripped,
+            replacement="",
+            action="remove" if confidence == Confidence.HIGH else "report",
+            paragraph=paragraph_index,
+        )
+
+    if _ARTIFACT_ONLY.match(stripped) and ("\\" in stripped or '"' in stripped or "'" in stripped):
+        return TextIssue(
+            chapter=chapter,
+            category="web_residue",
+            confidence=Confidence.HIGH,
+            confidence_score=0.97,
+            rule="isolated_quote_escape",
+            reason="独立的反斜杠或引号片段是明显的网页转义残留",
+            original=stripped,
+            replacement="",
+            action="remove",
+            paragraph=paragraph_index,
+        )
+    return None
+
+
 def clean_paragraph(
     paragraph: str,
     chapter: str,
@@ -85,6 +136,30 @@ def clean_paragraph(
     issues: list[TextIssue] = []
     text = paragraph
 
+    text = _apply(
+        text,
+        re.compile(r'\\+(?=")'),
+        "",
+        issues,
+        chapter,
+        paragraph_index,
+        "escaped_quote_artifact",
+        "正文中的反斜杠转义引号是明显的网页残留",
+        Confidence.HIGH,
+        0.96,
+    )
+    text = _apply(
+        text,
+        re.compile(rf"(?<=[{_CJK}])\s*[—–-]{{2,}}\s*(?=[{_CJK}])"),
+        "——",
+        issues,
+        chapter,
+        paragraph_index,
+        "mixed_dash_sequence",
+        "中文正文中的混合长横线属于明显异常标点",
+        Confidence.HIGH,
+        0.94,
+    )
     text = _apply(
         text,
         re.compile(r"，{2,}"),
@@ -184,7 +259,7 @@ def clean_paragraph(
             )
         )
 
-    if text.count("“") != text.count("”"):
+    if text.count("“") != text.count("”") or text.count("「") != text.count("」"):
         issues.append(
             _issue(
                 chapter,
@@ -205,6 +280,12 @@ def clean_paragraph(
 def _replace_straight_quotes(text: str) -> str:
     if text.count('"') == 0:
         return text
+    if text.count("「") == text.count("」") + 1 and text.count('"') == 1:
+        return text.replace('"', "」", 1)
+    if text.count("」") == text.count("「") + 1 and text.count('"') == 1:
+        return text.replace('"', "「", 1)
+    if text.count("「") == text.count("」") and re.search(r'[」”]\s*"$', text):
+        return text.rsplit('"', 1)[0]
     if text.count("“") > text.count("”") and text.count('"') == 1:
         return text.replace('"', "”", 1)
     if text.count("”") > text.count("“") and text.count('"') == 1:
