@@ -81,7 +81,8 @@ python -m pip install -e ".[gui]" -i https://pypi.tuna.tsinghua.edu.cn/simple
 1. 选择一个包含 `chapters/` 的小说文件夹。
 2. 选择“仅检测”或“保守自动修复”。
 3. 点击开始，程序会逐章检测广告、标点、乱码和异常繁简体字符。
-4. 完成后可以打开报告目录，或直接使用 `cleaned/` 中的清洗版小说。
+4. 自动修复完成后点击“人工审核修改”，查看每章的修改数量和逐条差异。
+5. 可以取消不满意的修改，再点击“应用审核结果”更新 `cleaned/`。
 
 两种模式：
 
@@ -101,7 +102,8 @@ python -m pip install -e ".[gui]" -i https://pypi.tuna.tsinghua.edu.cn/simple
         ├── clean_report.json
         ├── clean_report.csv
         ├── clean_report.txt
-        └── clean_log.json       # 所有自动修改的完整记录
+        ├── clean_log.json       # 所有自动修改的完整记录
+        └── review_decisions.json # 人工审核接受/取消记录
 ```
 
 命令行用法：
@@ -130,6 +132,14 @@ python -m pip install -e ".[gui]" -i https://pypi.tuna.tsinghua.edu.cn/simple
 - `！！`、`？？？` 等可能是作者表达的内容不会被自动删除。
 - 繁体字只有在全文风格和上下文证据明确时才自动修正，专有名词默认保留。
 - 程序不会做通用错别字猜测，无法确定的问题只写报告。
+
+人工审核窗口：
+
+- 左侧列表按章节显示自动修改总数及标点、广告和其他问题数量。
+- 鼠标悬停章节或修改行会显示原文、修改后和原因。
+- 右侧逐条列出原文与修改后内容，可取消任意修改。
+- 点击“应用审核结果”后重新生成 `cleaned/`，原始 `chapters/` 不变。
+- 审核决定保存在 `reports/review_decisions.json`。
 
 ## 命令行版本
 

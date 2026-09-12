@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from .cleaner_worker import CleanWorker
+from .review_gui import ReviewDialog
 from .text_cleaner import BookCleanResult, CleanProgress, CleaningMode
 
 
@@ -80,7 +81,13 @@ class CleanerDialog(QDialog):
         self.open_reports_button.setObjectName("secondaryButton")
         self.open_reports_button.setEnabled(False)
         self.open_reports_button.clicked.connect(self._open_reports)
+        self.review_button = QPushButton("人工审核修改")
+        self.review_button.setObjectName("secondaryButton")
+        self.review_button.setEnabled(False)
+        self.review_button.setToolTip("自动修复完成后查看并逐条审核修改")
+        self.review_button.clicked.connect(self._open_review)
         button_row.addWidget(self.start_button)
+        button_row.addWidget(self.review_button)
         button_row.addWidget(self.open_reports_button)
         button_row.addStretch(1)
         layout.addLayout(button_row)
@@ -124,6 +131,7 @@ class CleanerDialog(QDialog):
 
         self.start_button.setEnabled(False)
         self.open_reports_button.setEnabled(False)
+        self.review_button.setEnabled(False)
         self.progress_bar.setRange(0, 1)
         self.progress_bar.setValue(0)
         self.log_output.clear()
@@ -149,6 +157,9 @@ class CleanerDialog(QDialog):
         self.worker = None
         self.start_button.setEnabled(True)
         self.open_reports_button.setEnabled(True)
+        self.review_button.setEnabled(
+            result.mode == CleaningMode.AUTO and result.applied_count > 0
+        )
         self.progress_bar.setValue(self.progress_bar.maximum())
         summary = [
             f"章节：{result.chapter_count}",
@@ -176,6 +187,13 @@ class CleanerDialog(QDialog):
     def _append_log(self, message: str) -> None:
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.log_output.append(f"[{timestamp}] {message}")
+
+    def _open_review(self) -> None:
+        if self.last_result is None:
+            return
+        dialog = ReviewDialog(self.last_result, self)
+        dialog.exec()
+        self._append_log("人工审核完成，清洗版输出已按审核结果更新")
 
     def _open_reports(self) -> None:
         if self.last_result is None or self.last_result.reports_dir is None:

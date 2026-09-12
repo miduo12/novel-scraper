@@ -9,6 +9,8 @@ pytest.importorskip("PySide6")
 from PySide6.QtWidgets import QApplication
 
 from novel_scraper.cleaner_gui import CleanerDialog
+from novel_scraper.review_gui import ReviewDialog
+from novel_scraper.text_cleaner.models import BookCleanResult, ChapterCleanResult, CleaningMode
 from novel_scraper.gui import MainWindow
 
 
@@ -26,4 +28,20 @@ def test_main_window_can_be_created() -> None:
     assert dialog.mode_combo.count() == 2
     dialog.close()
     window.close()
+    app.processEvents()
+
+
+def test_review_dialog_can_be_created(tmp_path) -> None:
+    app = QApplication.instance() or QApplication([])
+    chapter = ChapterCleanResult("第1章", tmp_path / "1.txt", "他说道.", "他说道。")
+    result = BookCleanResult(
+        book_dir=tmp_path,
+        mode=CleaningMode.AUTO,
+        chapter_count=1,
+        chapters=[chapter],
+    )
+    dialog = ReviewDialog(result)
+    assert dialog.chapter_tree.topLevelItemCount() == 1
+    assert dialog.change_table.rowCount() == 1
+    dialog.close()
     app.processEvents()
