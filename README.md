@@ -191,3 +191,9 @@ src/novel_scraper/
 ## 合规说明
 
 请合理设置请求频率，仅用于个人学习、备份和已获授权的内容。不要使用本工具绕过付费、权限或访问控制，并遵守目标网站的服务条款和适用法律。
+
+## 安全与隐私
+
+- `.env`、`.env.*`、Token、私钥、证书、`secrets.json` 和 `credentials.json` 已加入 `.gitignore`。
+- 下载内容、虚拟环境、构建目录和日志不会提交到 Git。
+- 程序不会在项目代码中保存 GitHub 登录 Token；本机 GitHub 凭据由 Git Credential Manager 管理。

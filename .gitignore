@@ -13,3 +13,14 @@ htmlcov/
 /build/
 /dist/
 /NovelScraperDir.spec
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.token
+secrets.json
+credentials.json
+config.local.json
+.streamlit/secrets.toml
