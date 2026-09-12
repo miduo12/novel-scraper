@@ -4,3 +4,9 @@ __pycache__/
 venv/
 .env
 *.log
+downloads/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+htmlcov/
