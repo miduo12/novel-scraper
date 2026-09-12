@@ -82,7 +82,7 @@ def safe_atomic_write_text(
     except PermissionError:
         from datetime import datetime
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().astimezone().strftime("%Y%m%d_%H%M%S")
         alternate = path.with_name(f"{path.stem}_new_{timestamp}{path.suffix}")
         atomic_write_text(alternate, text, encoding)
         return alternate
@@ -103,9 +103,7 @@ _CHINESE_DIGITS = {
     "九": 9,
 }
 _CHINESE_UNITS = {"十": 10, "百": 100, "千": 1000, "万": 10000, "亿": 100000000}
-_CHAPTER_NUMBER_RE = re.compile(
-    r"^第\s*([0-9零〇一二三四五六七八九十百千万两亿]+)\s*章"
-)
+_CHAPTER_NUMBER_RE = re.compile(r"^第\s*([0-9零〇一二三四五六七八九十百千万两亿]+)\s*章")
 
 
 def chinese_number_to_int(value: str) -> int:

@@ -27,9 +27,9 @@ def test_live_chapter_can_be_cleaned_without_modifying_original(tmp_path: Path) 
         path.name: path.read_text(encoding="utf-8")
         for path in (book_dir / "chapters").glob("*.txt")
     }
-    result = BookCleaner(
-        blacklist_store=AdBlacklistStore(tmp_path / "blacklist.json")
-    ).process(book_dir, CleaningMode.AUTO)
+    result = BookCleaner(blacklist_store=AdBlacklistStore(tmp_path / "blacklist.json")).process(
+        book_dir, CleaningMode.AUTO
+    )
 
     assert result.chapter_count == 1
     assert result.reports_dir and result.reports_dir.exists()

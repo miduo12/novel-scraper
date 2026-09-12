@@ -31,7 +31,9 @@ CHAPTER_HTML = """
 </html>
 """
 
-SCRIPT_JS = "var chapterToken = 'token123';\nvar timestamp = 1789225625000;\nvar nonce = 'abc123';\n"
+SCRIPT_JS = (
+    "var chapterToken = 'token123';\nvar timestamp = 1789225625000;\nvar nonce = 'abc123';\n"
+)
 
 API_PAYLOAD = {
     "status": 1,

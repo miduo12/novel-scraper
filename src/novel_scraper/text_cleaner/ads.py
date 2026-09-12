@@ -42,8 +42,7 @@ def detect_ad(
                 confidence_score=match.score,
                 rule="user_ad_blacklist",
                 reason=(
-                    f"与用户广告黑名单高度重合（相似度 {match.score:.0%}，"
-                    f"匹配方式 {match.method}）"
+                    f"与用户广告黑名单高度重合（相似度 {match.score:.0%}，匹配方式 {match.method}）"
                 ),
                 original=paragraph,
                 replacement="",

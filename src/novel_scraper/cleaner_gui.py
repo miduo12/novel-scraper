@@ -21,9 +21,9 @@ from PySide6.QtWidgets import (
 
 from .blacklist_gui import AdBlacklistDialog
 from .cleaner_worker import CleanWorker
-from .ui_utils import apply_adaptive_size
 from .review_gui import ReviewDialog
-from .text_cleaner import BookCleanResult, CleanProgress, CleaningMode
+from .text_cleaner import BookCleanResult, CleaningMode, CleanProgress
+from .ui_utils import apply_adaptive_size
 
 
 class CleanerDialog(QDialog):
@@ -114,8 +114,7 @@ class CleanerDialog(QDialog):
         layout.addWidget(self.log_output, 1)
 
         note = QLabel(
-            "保守策略：高置信度问题才自动修改；中低置信度问题只写入报告，"
-            "无法确定的内容保持原文。"
+            "保守策略：高置信度问题才自动修改；中低置信度问题只写入报告，无法确定的内容保持原文。"
         )
         note.setObjectName("footer")
         note.setWordWrap(True)
@@ -157,7 +156,9 @@ class CleanerDialog(QDialog):
         self.status_label.setText(
             f"[{progress.current}/{progress.total}] {progress.message}：{progress.chapter}"
         )
-        self._append_log(f"[{progress.current}/{progress.total}] {progress.chapter} {progress.message}")
+        self._append_log(
+            f"[{progress.current}/{progress.total}] {progress.chapter} {progress.message}"
+        )
 
     def _handle_success(self, result: BookCleanResult) -> None:
         self.last_result = result
@@ -194,7 +195,7 @@ class CleanerDialog(QDialog):
         QMessageBox.critical(self, "处理失败", message)
 
     def _append_log(self, message: str) -> None:
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        timestamp = datetime.now().astimezone().strftime("%H:%M:%S")
         self.log_output.append(f"[{timestamp}] {message}")
 
     def _open_blacklist(self) -> None:

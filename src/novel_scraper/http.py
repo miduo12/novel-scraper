@@ -45,7 +45,7 @@ class HttpClient:
     def close(self) -> None:
         self.session.close()
 
-    def __enter__(self) -> "HttpClient":
+    def __enter__(self) -> HttpClient:  # noqa: PYI034
         return self
 
     def __exit__(self, *_: object) -> None:

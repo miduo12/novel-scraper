@@ -8,7 +8,7 @@ from pathlib import Path
 from ..utils import safe_atomic_write_text, safe_filename
 from .blacklist import AdBlacklistStore
 from .cleaner import ChapterCleaner
-from .models import BookCleanResult, CleanProgress, CleaningMode
+from .models import BookCleanResult, CleaningMode, CleanProgress
 from .report import write_reports
 from .rules import CleanerRules, load_rules
 from .typo import TextStyleProfile

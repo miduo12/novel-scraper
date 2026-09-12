@@ -17,7 +17,7 @@ class StoredState:
     failures: dict[str, dict[str, str]] = field(default_factory=dict)
 
     @classmethod
-    def from_payload(cls, payload: object) -> "StoredState":
+    def from_payload(cls, payload: object) -> StoredState:
         if not isinstance(payload, dict):
             return cls()
         completed = payload.get("completed", [])

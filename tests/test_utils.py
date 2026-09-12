@@ -6,8 +6,8 @@ from novel_scraper.utils import (
     content_hash,
     make_page_url,
     parse_chapter_number,
-    safe_filename,
     safe_atomic_write_text,
+    safe_filename,
 )
 
 
@@ -32,7 +32,7 @@ def test_content_hash_ignores_whitespace() -> None:
 
 
 def test_safe_filename() -> None:
-    assert safe_filename('第1章：开始/测试?') == "第1章：开始_测试_"
+    assert safe_filename("第1章：开始/测试?") == "第1章：开始_测试_"
 
 
 def test_atomic_write_text(tmp_path: Path) -> None:

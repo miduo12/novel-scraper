@@ -7,8 +7,8 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .models import BookCleanResult
 from ..utils import safe_atomic_write_text
+from .models import BookCleanResult
 
 
 def write_reports(result: BookCleanResult, reports_dir: Path) -> dict[str, Path]:

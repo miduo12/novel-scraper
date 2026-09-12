@@ -42,7 +42,7 @@ class AdBlacklistEntry:
     created_at: str
 
     @classmethod
-    def from_payload(cls, payload: object) -> "AdBlacklistEntry | None":
+    def from_payload(cls, payload: object) -> AdBlacklistEntry | None:
         if not isinstance(payload, dict):
             return None
         entry_id = str(payload.get("id", "")).strip()
@@ -140,7 +140,10 @@ def find_blacklist_match(
         if entry_normalized in paragraph_normalized:
             score = 1.0
             method = "contains"
-        elif paragraph_normalized in entry_normalized and len(paragraph_normalized) >= len(entry_normalized) * 0.65:
+        elif (
+            paragraph_normalized in entry_normalized
+            and len(paragraph_normalized) >= len(entry_normalized) * 0.65
+        ):
             score = len(paragraph_normalized) / len(entry_normalized)
             method = "contained"
         else:
@@ -159,7 +162,6 @@ def find_blacklist_match(
             ).ratio()
             paragraph_grams = _ngrams(paragraph_normalized)
             entry_grams = _ngrams(entry_normalized)
-            union = paragraph_grams | entry_grams
             dice = (
                 2 * len(paragraph_grams & entry_grams) / (len(paragraph_grams) + len(entry_grams))
                 if paragraph_grams and entry_grams

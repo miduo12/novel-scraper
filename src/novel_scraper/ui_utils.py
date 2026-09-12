@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint
 from PySide6.QtGui import QCursor, QGuiApplication
 from PySide6.QtWidgets import QWidget
 

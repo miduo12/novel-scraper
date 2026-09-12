@@ -1,5 +1,5 @@
-from novel_scraper.text_cleaner.models import CleaningMode, Confidence
 from novel_scraper.text_cleaner.cleaner import ChapterCleaner
+from novel_scraper.text_cleaner.models import CleaningMode, Confidence
 from novel_scraper.text_cleaner.rules import load_rules
 from novel_scraper.text_cleaner.typo import TextStyleProfile, find_issues
 

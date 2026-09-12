@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, QStandardPaths, Qt, QTimer, QUrl
+from PySide6.QtCore import QSettings, QStandardPaths, QTimer, QUrl
 from PySide6.QtGui import QCloseEvent, QDesktopServices, QDragEnterEvent, QDropEvent, QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -296,9 +296,10 @@ class MainWindow(QMainWindow):
     def _restore_settings(self) -> None:
         last_url = str(self.settings.value("last_url", ""))
         self.url_input.setText(last_url)
-        default_output = Path(
-            QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DownloadLocation)
-        ) / "小说下载"
+        default_output = (
+            Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DownloadLocation))
+            / "小说下载"
+        )
         self.output_input.setText(str(self.settings.value("output_dir", default_output)))
         saved_delay = float(self.settings.value("speed_delay", 0.2))
         speed_index = self.speed_combo.findData(saved_delay)
@@ -492,7 +493,7 @@ class MainWindow(QMainWindow):
         self.worker = None
 
     def _append_log(self, message: str) -> None:
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        timestamp = datetime.now().astimezone().strftime("%H:%M:%S")
         self.log_output.append(f"[{timestamp}] {message}")
 
     def _open_cleaner(self) -> None:

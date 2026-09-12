@@ -26,5 +26,5 @@ class CleanWorker(QThread):
                 progress_callback=self.progress.emit,
             )
             self.succeeded.emit(result)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             self.failed.emit(str(exc) or exc.__class__.__name__)

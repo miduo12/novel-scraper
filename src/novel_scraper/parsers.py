@@ -7,9 +7,7 @@ from bs4 import BeautifulSoup, Tag
 
 from .exceptions import ParseError
 
-_CHAPTER_HEADING_RE = re.compile(
-    r"^第\s*[0-9零〇一二三四五六七八九十百千万两]{1,20}\s*章(?:\s|$)"
-)
+_CHAPTER_HEADING_RE = re.compile(r"^第\s*[0-9零〇一二三四五六七八九十百千万两]{1,20}\s*章(?:\s|$)")
 
 
 def make_soup(markup: str) -> BeautifulSoup:

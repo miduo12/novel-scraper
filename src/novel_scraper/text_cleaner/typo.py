@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
+from itertools import pairwise
 
 from .models import Confidence, TextIssue
 from .rules import CleanerRules
@@ -18,7 +19,7 @@ class TextStyleProfile:
     cjk_total: int
 
     @classmethod
-    def build(cls, texts: list[str], traditional_map: dict[str, str]) -> "TextStyleProfile":
+    def build(cls, texts: list[str], traditional_map: dict[str, str]) -> TextStyleProfile:
         simplified_counts: Counter[str] = Counter()
         traditional_counts: Counter[str] = Counter()
         bigrams: Counter[str] = Counter()
@@ -30,7 +31,7 @@ class TextStyleProfile:
             cjk_total += len(cjk_chars)
             simplified_counts.update(char for char in cjk_chars if char in simplified_values)
             traditional_counts.update(char for char in cjk_chars if char in traditional_map)
-            for left, right in zip(cjk_chars, cjk_chars[1:]):
+            for left, right in pairwise(cjk_chars):
                 bigrams[left + right] += 1
 
         return cls(simplified_counts, traditional_counts, bigrams, cjk_total)
@@ -68,9 +69,7 @@ def find_issues(
                     paragraph=paragraph_index,
                 )
             )
-        elif char in _ZERO_WIDTH_CHARS or (
-            ord(char) < 32 and char not in {"\n", "\r", "\t"}
-        ):
+        elif char in _ZERO_WIDTH_CHARS or (ord(char) < 32 and char not in {"\n", "\r", "\t"}):
             issues.append(
                 TextIssue(
                     chapter=chapter,

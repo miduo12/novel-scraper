@@ -74,12 +74,7 @@ def test_write_reviewed_output_preserves_original_and_writes_decisions(tmp_path:
     )
     changes = build_diff_changes(chapter)
     punctuation = next(change for change in changes if change.category == "punctuation")
-    decisions = {
-        "第1章": {
-            change.index: change.index != punctuation.index
-            for change in changes
-        }
-    }
+    decisions = {"第1章": {change.index: change.index != punctuation.index for change in changes}}
 
     paths = write_reviewed_output(result, decisions)
 

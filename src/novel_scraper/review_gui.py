@@ -25,13 +25,13 @@ from PySide6.QtWidgets import (
 
 from .blacklist_gui import AdBlacklistDialog
 from .text_cleaner.models import BookCleanResult, TextIssue
-from .ui_utils import apply_adaptive_size
 from .text_cleaner.review import (
     DiffChange,
     apply_review_decisions,
     build_diff_changes,
     write_reviewed_output,
 )
+from .ui_utils import apply_adaptive_size
 
 _CATEGORY_LABELS = {
     "advertisement": "广告",
@@ -273,14 +273,13 @@ class ReviewDialog(QDialog):
             "td.diff_add { background: #ddf5e4; }"
             "td.diff_chg { background: #fff0c7; }"
             "td.diff_sub { background: #ffe0e0; }"
-            "</style>"
-            + diff
+            "</style>" + diff
         )
 
     def _apply(self) -> None:
         try:
             paths = write_reviewed_output(self.result, self.accepted)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "应用失败", str(exc))
             return
         QMessageBox.information(

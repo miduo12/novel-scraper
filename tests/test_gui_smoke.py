@@ -10,9 +10,9 @@ from PySide6.QtWidgets import QApplication, QScrollArea
 
 from novel_scraper.blacklist_gui import AdBlacklistDialog
 from novel_scraper.cleaner_gui import CleanerDialog
+from novel_scraper.gui import MainWindow
 from novel_scraper.review_gui import ReviewDialog
 from novel_scraper.text_cleaner.models import BookCleanResult, ChapterCleanResult, CleaningMode
-from novel_scraper.gui import MainWindow
 
 
 def test_main_window_can_be_created() -> None:

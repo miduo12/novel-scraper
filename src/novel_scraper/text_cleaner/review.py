@@ -140,7 +140,9 @@ def build_diff_changes(chapter: ChapterCleanResult) -> list[DiffChange]:
 
         for tj in range(j1 + paired, j2):
             t_start, t_end = target_spans[tj]
-            insert_at = original_spans[i2][0] if i2 < len(original_spans) else len(chapter.original_text)
+            insert_at = (
+                original_spans[i2][0] if i2 < len(original_spans) else len(chapter.original_text)
+            )
             add_change(
                 "",
                 target_text[t_start:t_end],
@@ -173,15 +175,11 @@ def _matching_issue(
     issues: list[TextIssue],
 ) -> TextIssue | None:
     original_stripped = original.strip()
-    replacement_stripped = replacement.strip()
     fallback: TextIssue | None = None
     for issue in issues:
         issue_original = issue.original.strip()
         issue_replacement = issue.replacement.strip()
-        if issue_original and (
-            issue_original in original
-            or original_stripped in issue_original
-        ):
+        if issue_original and (issue_original in original or original_stripped in issue_original):
             if issue.applied:
                 return issue
             fallback = fallback or issue
@@ -201,7 +199,7 @@ def apply_review_decisions(
     result: list[str] = []
     last = 0
     for change in changes:
-        result.append(original_text[last:change.i1])
+        result.append(original_text[last : change.i1])
         if change.index in accepted_indexes:
             result.append(change.replacement)
         else:

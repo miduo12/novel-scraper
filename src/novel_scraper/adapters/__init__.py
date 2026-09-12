@@ -16,4 +16,4 @@ def adapter_for_url(url: str, http_client: object) -> SiteAdapter:
     raise UnsupportedSiteError(f"暂不支持该网站：{url}")
 
 
-__all__ = ["SiteAdapter", "DeqixsAdapter", "adapter_for_url"]
+__all__ = ["DeqixsAdapter", "SiteAdapter", "adapter_for_url"]

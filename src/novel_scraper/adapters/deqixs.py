@@ -238,9 +238,7 @@ class DeqixsAdapter(SiteAdapter):
                 "referrer": chapter_url,
             }
         )
-        return urlunparse(
-            (parsed.scheme, parsed.netloc, "/scripts/chapter.js.php", "", query, "")
-        )
+        return urlunparse((parsed.scheme, parsed.netloc, "/scripts/chapter.js.php", "", query, ""))
 
     @staticmethod
     def _origin(url: str) -> str:
@@ -260,8 +258,14 @@ class DeqixsAdapter(SiteAdapter):
         query = parse_qs(parsed.query, keep_blank_values=True)
         query[key] = [value]
         return urlunparse(
-            (parsed.scheme, parsed.netloc, parsed.path, parsed.params,
-             urlencode(query, doseq=True), parsed.fragment)
+            (
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                parsed.params,
+                urlencode(query, doseq=True),
+                parsed.fragment,
+            )
         )
 
     @staticmethod

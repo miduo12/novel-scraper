@@ -13,7 +13,8 @@ from .models import (
 from .punctuation import clean_paragraph as clean_punctuation
 from .punctuation import detect_web_residue
 from .rules import CleanerRules
-from .typo import TextStyleProfile, find_issues as find_typo_issues
+from .typo import TextStyleProfile
+from .typo import find_issues as find_typo_issues
 
 _PARAGRAPH_SPLIT = re.compile(r"\n\s*\n+")
 
@@ -114,7 +115,9 @@ class ChapterCleaner:
                     issue.action = "report"
                 issues.append(issue)
 
-            if mode == CleaningMode.AUTO and (punctuation_text != paragraphs[index] or typo_text != punctuation_text):
+            if mode == CleaningMode.AUTO and (
+                punctuation_text != paragraphs[index] or typo_text != punctuation_text
+            ):
                 paragraphs[index] = typo_text
                 changed = True
 

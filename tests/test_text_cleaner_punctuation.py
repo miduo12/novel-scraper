@@ -37,8 +37,8 @@ def test_keeps_english_sentence() -> None:
 
 
 def test_keeps_english_content_inside_chinese_quotes() -> None:
-    text, _ = clean_paragraph('他说：“Hello, world.”', "第1章", 0)
-    assert text == '他说：“Hello, world.”'
+    text, _ = clean_paragraph("他说：“Hello, world.”", "第1章", 0)
+    assert text == "他说：“Hello, world.”"
 
 
 def test_cleans_mixed_dashes_and_escaped_closing_quote() -> None:

@@ -61,5 +61,5 @@ class CrawlWorker(QThread):
             self.succeeded.emit(result)
         except CrawlCancelled:
             self.stopped.emit()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             self.failed.emit(str(exc) or exc.__class__.__name__)

@@ -51,7 +51,7 @@ class NovelCrawler:
         *,
         progress_callback: ProgressCallback | None = None,
         cancel_event: Event | None = None,
-    ) -> "NovelCrawler":
+    ) -> NovelCrawler:
         http = HttpClient(
             delay=options.delay,
             timeout=options.timeout,
@@ -64,7 +64,7 @@ class NovelCrawler:
             cancel_event=cancel_event,
         )
 
-    def __enter__(self) -> "NovelCrawler":
+    def __enter__(self) -> NovelCrawler:  # noqa: PYI034
         return self
 
     def __exit__(self, *_: object) -> None:
@@ -152,7 +152,9 @@ class NovelCrawler:
                 )
             first_index = min(chapter.index for chapter in selected)
             last_index = max(chapter.index for chapter in selected)
-            return tuple(chapter for chapter in book.chapters if first_index <= chapter.index <= last_index)
+            return tuple(
+                chapter for chapter in book.chapters if first_index <= chapter.index <= last_index
+            )
 
         total_chapters = len(book.chapters)
         start_index = start or 1
@@ -230,15 +232,17 @@ class NovelCrawler:
                 pages = self.adapter.fetch_chapter_pages(
                     chapter,
                     self.options.max_pages,
-                    on_page=lambda page_number: self._emit(
-                        "page_started",
-                        f"正在下载第 {page_number} 页",
-                        book=book,
-                        chapter=chapter,
-                        completed=position - 1,
-                        total=total,
-                        failed=failed,
-                        page=page_number,
+                    on_page=lambda page_number, chapter=chapter, position=position, failed=failed: (
+                        self._emit(
+                            "page_started",
+                            f"正在下载第 {page_number} 页",
+                            book=book,
+                            chapter=chapter,
+                            completed=position - 1,
+                            total=total,
+                            failed=failed,
+                            page=page_number,
+                        )
                     ),
                     should_cancel=self._cancelled,
                 )
