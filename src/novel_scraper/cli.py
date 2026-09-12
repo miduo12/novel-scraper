@@ -48,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="start_chapter",
         type=int,
         default=None,
-        help="从第 N 章开始（包含），默认第 1 章",
+        help="从标题中的第 N 章开始（包含），默认第一段章号",
     )
     crawl.add_argument(
         "--to-chapter",
@@ -56,7 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="end_chapter",
         type=int,
         default=None,
-        help="抓到第 N 章结束（包含），默认最后一章",
+        help="抓到标题中的第 N 章结束（包含），默认最后一段章号",
     )
     crawl.add_argument("--force", action="store_true", help="忽略断点，重新抓取指定章节")
 

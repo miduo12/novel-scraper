@@ -14,7 +14,7 @@ from ..parsers import (
     strip_leading_chapter_heading,
     strip_page_marker,
 )
-from ..utils import make_page_url
+from ..utils import make_page_url, parse_chapter_number
 from .base import SiteAdapter
 
 logger = logging.getLogger(__name__)
@@ -108,7 +108,14 @@ class DeqixsAdapter(SiteAdapter):
             if not title:
                 continue
             seen_urls.add(chapter_url)
-            chapters.append(Chapter(index=len(chapters) + 1, title=title, url=chapter_url))
+            chapters.append(
+                Chapter(
+                    index=len(chapters) + 1,
+                    title=title,
+                    url=chapter_url,
+                    number=parse_chapter_number(title),
+                )
+            )
 
         return tuple(chapters)
 

@@ -27,6 +27,8 @@ class CrawlEvent:
     completed: int = 0
     total: int = 0
     book_total: int = 0
+    first_chapter_number: int | None = None
+    last_chapter_number: int | None = None
     failed: int = 0
     page: int = 0
     output_path: Path | None = None

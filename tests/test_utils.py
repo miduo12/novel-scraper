@@ -1,6 +1,12 @@
 from pathlib import Path
 
-from novel_scraper.utils import atomic_write_text, content_hash, make_page_url, safe_filename
+from novel_scraper.utils import (
+    atomic_write_text,
+    content_hash,
+    make_page_url,
+    parse_chapter_number,
+    safe_filename,
+)
 
 
 def test_make_page_url_removes_page_one() -> None:
@@ -31,3 +37,9 @@ def test_atomic_write_text(tmp_path: Path) -> None:
     target = tmp_path / "nested" / "file.txt"
     atomic_write_text(target, "内容")
     assert target.read_text(encoding="utf-8") == "内容"
+
+
+def test_parse_chapter_number() -> None:
+    assert parse_chapter_number("第1156章 标题") == 1156
+    assert parse_chapter_number("第一千五百八十九章 标题") == 1589
+    assert parse_chapter_number("没有章号") is None

@@ -9,6 +9,7 @@ class Chapter:
     index: int
     title: str
     url: str
+    number: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

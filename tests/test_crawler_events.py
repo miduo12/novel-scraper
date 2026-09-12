@@ -19,13 +19,19 @@ class FakeHttp:
 class FakeAdapter:
     name = "fake"
 
-    def __init__(self, chapter_count: int = 1) -> None:
+    def __init__(
+        self,
+        chapter_count: int = 1,
+        chapter_numbers: tuple[int, ...] | None = None,
+    ) -> None:
         self.http = FakeHttp()
+        numbers = chapter_numbers or tuple(range(1, chapter_count + 1))
         self.chapters = tuple(
             Chapter(
                 index=index,
-                title=f"第{index}章",
+                title=f"第{numbers[index - 1]}章",
                 url=f"https://example.com/{index}.html",
+                number=numbers[index - 1],
             )
             for index in range(1, chapter_count + 1)
         )
@@ -57,9 +63,10 @@ def make_crawler(
     *,
     options: CrawlOptions | None = None,
     chapter_count: int = 1,
+    chapter_numbers: tuple[int, ...] | None = None,
 ) -> NovelCrawler:
     return NovelCrawler(
-        FakeAdapter(chapter_count),
+        FakeAdapter(chapter_count, chapter_numbers),
         options or CrawlOptions(output_dir=tmp_path),
         progress_callback=callback,
         cancel_event=cancel_event,
@@ -85,20 +92,26 @@ def test_crawler_emits_progress_events(tmp_path: Path) -> None:
 
 def test_crawler_downloads_only_selected_chapter_range(tmp_path: Path) -> None:
     events = []
-    options = CrawlOptions(output_dir=tmp_path, start_chapter=2, end_chapter=4)
-    crawler = make_crawler(tmp_path, events.append, options=options, chapter_count=5)
+    options = CrawlOptions(output_dir=tmp_path, start_chapter=3, end_chapter=7)
+    crawler = make_crawler(
+        tmp_path,
+        events.append,
+        options=options,
+        chapter_count=5,
+        chapter_numbers=(1, 3, 5, 7, 9),
+    )
     result = crawler.crawl_book("https://example.com/book/1.html")
 
     started = [event.chapter_title for event in events if event.kind == "chapter_started"]
-    assert started == ["第2章", "第3章", "第4章"]
+    assert started == ["第3章", "第5章", "第7章"]
     assert result.completed == 3
     assert result.output_path.exists()
     combined = result.output_path.read_text(encoding="utf-8")
-    assert "第2章正文" in combined
     assert "第3章正文" in combined
-    assert "第4章正文" in combined
+    assert "第5章正文" in combined
+    assert "第7章正文" in combined
     assert "第1章正文" not in combined
-    assert "第5章正文" not in combined
+    assert "第9章正文" not in combined
 
 
 def test_crawler_can_be_cancelled(tmp_path: Path) -> None:

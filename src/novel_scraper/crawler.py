@@ -80,6 +80,8 @@ class NovelCrawler:
         completed: int = 0,
         total: int = 0,
         book_total: int = 0,
+        first_chapter_number: int | None = None,
+        last_chapter_number: int | None = None,
         failed: int = 0,
         page: int = 0,
         output_path: Path | None = None,
@@ -95,6 +97,8 @@ class NovelCrawler:
             completed=completed,
             total=total,
             book_total=book_total,
+            first_chapter_number=first_chapter_number,
+            last_chapter_number=last_chapter_number,
             failed=failed,
             page=page,
             output_path=output_path,
@@ -121,19 +125,53 @@ class NovelCrawler:
     def list_chapters(self, url: str) -> Book:
         return self.fetch_book(url)
 
+    def _select_chapters(self, book: Book) -> tuple[Chapter, ...]:
+        start = self.options.start_chapter
+        end = self.options.end_chapter
+        if start is None and end is None:
+            return book.chapters
+
+        numbered = [chapter for chapter in book.chapters if chapter.number is not None]
+        if numbered:
+            first_number = min(chapter.number for chapter in numbered if chapter.number is not None)
+            last_number = max(chapter.number for chapter in numbered if chapter.number is not None)
+            start_number = start if start is not None else first_number
+            end_number = end if end is not None else last_number
+            if start_number < 1:
+                raise ValueError("起始章节必须大于或等于 1")
+            if end_number < start_number:
+                raise ValueError("结束章节不能小于起始章节")
+            selected = [
+                chapter
+                for chapter in numbered
+                if chapter.number is not None and start_number <= chapter.number <= end_number
+            ]
+            if not selected:
+                raise ValueError(
+                    f"所选章节范围不在目录中，当前章号范围：{first_number}-{last_number}"
+                )
+            first_index = min(chapter.index for chapter in selected)
+            last_index = max(chapter.index for chapter in selected)
+            return tuple(chapter for chapter in book.chapters if first_index <= chapter.index <= last_index)
+
+        total_chapters = len(book.chapters)
+        start_index = start or 1
+        end_index = end or total_chapters
+        if start_index < 1:
+            raise ValueError("起始章节必须大于或等于 1")
+        if end_index < start_index:
+            raise ValueError("结束章节不能小于起始章节")
+        if start_index > total_chapters:
+            raise ValueError(f"起始章节超出目录范围，当前共 {total_chapters} 章")
+        return book.chapters[start_index - 1 : min(end_index, total_chapters)]
+
     def crawl_book(self, url: str) -> CrawlResult:
         book = self.fetch_book(url)
         total_chapters = len(book.chapters)
-        start = self.options.start_chapter or 1
-        end = self.options.end_chapter or total_chapters
-        if start < 1:
-            raise ValueError("起始章节必须大于或等于 1")
-        if end < start:
-            raise ValueError("结束章节不能小于起始章节")
-        if start > total_chapters:
-            raise ValueError(f"起始章节超出目录范围，当前共 {total_chapters} 章")
-        end = min(end, total_chapters)
-        chapters = book.chapters[start - 1 : end]
+        numbered = [chapter.number for chapter in book.chapters if chapter.number is not None]
+        first_number = min(numbered) if numbered else None
+        last_number = max(numbered) if numbered else None
+        chapters = self._select_chapters(book)
         if self.options.limit is not None:
             chapters = chapters[: max(0, self.options.limit)]
 
@@ -157,6 +195,8 @@ class NovelCrawler:
             book=book,
             total=total,
             book_total=total_chapters,
+            first_chapter_number=first_number,
+            last_chapter_number=last_number,
         )
 
         for position, chapter in enumerate(chapters, start=1):

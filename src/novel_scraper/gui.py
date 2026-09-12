@@ -304,12 +304,21 @@ class MainWindow(QMainWindow):
         self.start_spin.setEnabled(enabled)
         self.end_spin.setEnabled(enabled)
 
-    def _configure_chapter_range(self, total: int) -> None:
+    def _configure_chapter_range(
+        self,
+        total: int,
+        first_number: int | None = None,
+        last_number: int | None = None,
+    ) -> None:
         self._chapter_total = total
-        self.start_spin.setMaximum(max(1, total))
-        self.end_spin.setMaximum(max(1, total))
-        if not self.range_checkbox.isChecked() or self.end_spin.value() in {1, self.end_spin.maximum()}:
-            self.end_spin.setValue(total)
+        first = first_number or 1
+        last = last_number or total
+        old_end = self.end_spin.value()
+        old_max = self.end_spin.maximum()
+        self.start_spin.setRange(first, max(first, last))
+        self.end_spin.setRange(first, max(first, last))
+        if not self.range_checkbox.isChecked() or old_end in {1, old_max}:
+            self.end_spin.setValue(last)
 
     def _choose_output_dir(self) -> None:
         selected = QFileDialog.getExistingDirectory(
@@ -389,7 +398,11 @@ class MainWindow(QMainWindow):
 
     def _handle_event(self, event: CrawlEvent) -> None:
         if event.kind == "book_loaded":
-            self._configure_chapter_range(event.book_total or event.total)
+            self._configure_chapter_range(
+                event.book_total or event.total,
+                event.first_chapter_number,
+                event.last_chapter_number,
+            )
         if event.book_title:
             self.book_label.setText(f"《{event.book_title}》  作者：{event.author or '未知'}")
         if event.total > 0:

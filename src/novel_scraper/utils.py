@@ -64,3 +64,57 @@ def atomic_write_text(path: Path, text: str) -> None:
     temp_path = path.with_name(f".{path.name}.tmp")
     temp_path.write_text(text, encoding="utf-8", newline="\n")
     temp_path.replace(path)
+
+
+_CHINESE_DIGITS = {
+    "零": 0,
+    "〇": 0,
+    "一": 1,
+    "二": 2,
+    "两": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+}
+_CHINESE_UNITS = {"十": 10, "百": 100, "千": 1000, "万": 10000, "亿": 100000000}
+_CHAPTER_NUMBER_RE = re.compile(
+    r"^第\s*([0-9零〇一二三四五六七八九十百千万两亿]+)\s*章"
+)
+
+
+def chinese_number_to_int(value: str) -> int:
+    total = 0
+    section = 0
+    number = 0
+    for char in value:
+        if char in _CHINESE_DIGITS:
+            number = _CHINESE_DIGITS[char]
+            continue
+        unit = _CHINESE_UNITS.get(char)
+        if unit is None:
+            continue
+        if unit < 10000:
+            section += (number or 1) * unit
+        else:
+            section += number
+            total += section * unit
+            section = 0
+        number = 0
+    return total + section + number
+
+
+def parse_chapter_number(title: str) -> int | None:
+    match = _CHAPTER_NUMBER_RE.match(title.strip())
+    if match is None:
+        return None
+    raw = match.group(1)
+    if raw.isdigit():
+        return int(raw)
+    try:
+        return chinese_number_to_int(raw)
+    except (KeyError, ValueError):
+        return None
