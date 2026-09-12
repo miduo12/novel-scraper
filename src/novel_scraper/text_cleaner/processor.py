@@ -5,7 +5,7 @@ from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 
-from ..utils import atomic_write_text, safe_filename
+from ..utils import safe_atomic_write_text, safe_filename
 from .blacklist import AdBlacklistStore
 from .cleaner import ChapterCleaner
 from .models import BookCleanResult, CleanProgress, CleaningMode
@@ -94,7 +94,7 @@ class BookCleaner:
             cleaned_chapter_dir = output_dir / "chapters"
             cleaned_chapter_dir.mkdir(parents=True, exist_ok=True)
             for result in chapter_results:
-                atomic_write_text(
+                safe_atomic_write_text(
                     cleaned_chapter_dir / result.source_path.name,
                     result.cleaned_text.strip() + "\n",
                 )
@@ -140,5 +140,4 @@ def _write_cleaned_book(
     for chapter in chapters:
         lines.extend([chapter.title, "", chapter.cleaned_text.strip(), ""])
     path = output_dir / f"{safe_filename(book_dir.name, fallback='novel')}_清洗版.txt"
-    atomic_write_text(path, "\n".join(lines).rstrip() + "\n")
-    return path
+    return safe_atomic_write_text(path, "\n".join(lines).rstrip() + "\n")

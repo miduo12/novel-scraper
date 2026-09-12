@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QSpinBox,
     QTextEdit,
@@ -61,17 +62,23 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         self.setWindowTitle(f"{APP_NAME} {__version__}")
-        apply_adaptive_size(self, 1120, 830)
-        self.setMinimumSize(880, 650)
+        apply_adaptive_size(self, 1280, 1000)
+        self.setMinimumSize(900, 680)
 
         icon_path = resource_path("app.png")
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 
+        scroll_area = QScrollArea()
+        scroll_area.setObjectName("mainScroll")
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         central = QWidget()
         central.setObjectName("central")
-        self.setCentralWidget(central)
+        central.setMinimumSize(900, 760)
         root = QVBoxLayout(central)
+        scroll_area.setWidget(central)
+        self.setCentralWidget(scroll_area)
         root.setContentsMargins(30, 26, 30, 24)
         root.setSpacing(18)
 
@@ -243,6 +250,8 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(
             """
             QWidget#central { background: #f3f6fb; color: #172033; }
+            QScrollArea#mainScroll { border: none; background: #f3f6fb; }
+            QScrollArea#mainScroll > QWidget > QWidget { background: #f3f6fb; }
             QLabel#title { font-size: 30px; font-weight: 700; color: #13213c; }
             QLabel#subtitle { font-size: 14px; color: #63708a; }
             QLabel#fieldLabel { font-size: 13px; font-weight: 600; color: #34425e; }
@@ -303,8 +312,8 @@ class MainWindow(QMainWindow):
         saved_geometry = self.settings.value("window_geometry")
         if saved_geometry:
             self.restoreGeometry(saved_geometry)
-            if self.width() < 880 or self.height() < 700:
-                apply_adaptive_size(self, 1120, 830)
+            if self.width() < 1050 or self.height() < 850:
+                apply_adaptive_size(self, 1280, 1000)
 
     def _save_settings(self) -> None:
         self.settings.setValue("last_url", self.url_input.text().strip())
@@ -549,7 +558,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.smoke_test:
         QTimer.singleShot(150, app.quit)
     else:
-        window.show()
+        window.showMaximized()
     return app.exec()
 
 

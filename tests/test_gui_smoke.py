@@ -6,7 +6,7 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QScrollArea
 
 from novel_scraper.blacklist_gui import AdBlacklistDialog
 from novel_scraper.cleaner_gui import CleanerDialog
@@ -25,6 +25,7 @@ def test_main_window_can_be_created() -> None:
     assert not window.start_spin.isEnabled()
     assert window.speed_combo.currentData() == 0.2
     assert window.minimumHeight() >= 650
+    assert isinstance(window.centralWidget(), QScrollArea)
     dialog = CleanerDialog(window)
     assert dialog.windowTitle() == "小说内容检测与保守清洗"
     assert dialog.mode_combo.count() == 2

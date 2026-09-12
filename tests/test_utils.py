@@ -1,11 +1,13 @@
 from pathlib import Path
 
+from novel_scraper import utils as utils_module
 from novel_scraper.utils import (
     atomic_write_text,
     content_hash,
     make_page_url,
     parse_chapter_number,
     safe_filename,
+    safe_atomic_write_text,
 )
 
 
@@ -43,3 +45,21 @@ def test_parse_chapter_number() -> None:
     assert parse_chapter_number("第1156章 标题") == 1156
     assert parse_chapter_number("第一千五百八十九章 标题") == 1589
     assert parse_chapter_number("没有章号") is None
+
+
+def test_safe_atomic_write_uses_alternate_when_target_locked(tmp_path, monkeypatch) -> None:
+    target = tmp_path / "clean_report.csv"
+    target.write_text("old", encoding="utf-8")
+    real_write = utils_module.atomic_write_text
+
+    def fake_write(path, text, encoding="utf-8"):
+        if path == target:
+            raise PermissionError("locked")
+        return real_write(path, text, encoding)
+
+    monkeypatch.setattr(utils_module, "atomic_write_text", fake_write)
+    actual = safe_atomic_write_text(target, "new")
+
+    assert actual != target
+    assert actual.read_text(encoding="utf-8") == "new"
+    assert target.read_text(encoding="utf-8") == "old"

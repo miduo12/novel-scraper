@@ -58,12 +58,34 @@ def safe_filename(value: str, fallback: str = "untitled", max_length: int = 80) 
     return value[:max_length].rstrip(" .") or fallback
 
 
-def atomic_write_text(path: Path, text: str) -> None:
-    """Write UTF-8 text atomically enough for checkpoint-style files."""
+def atomic_write_text(path: Path, text: str, encoding: str = "utf-8") -> None:
+    """Write text atomically enough for checkpoint-style files."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_name(f".{path.name}.tmp")
-    temp_path.write_text(text, encoding="utf-8", newline="\n")
-    temp_path.replace(path)
+    temp_path.write_text(text, encoding=encoding, newline="\n")
+    try:
+        temp_path.replace(path)
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
+
+
+def safe_atomic_write_text(
+    path: Path,
+    text: str,
+    encoding: str = "utf-8",
+) -> Path:
+    """Write to the requested file, or a new sibling if it is locked."""
+    try:
+        atomic_write_text(path, text, encoding)
+        return path
+    except PermissionError:
+        from datetime import datetime
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        alternate = path.with_name(f"{path.stem}_new_{timestamp}{path.suffix}")
+        atomic_write_text(alternate, text, encoding)
+        return alternate
 
 
 _CHINESE_DIGITS = {

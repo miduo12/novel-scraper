@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ..utils import atomic_write_text, safe_filename
+from ..utils import safe_atomic_write_text, safe_filename
 from .cleaner import split_paragraphs
 from .models import BookCleanResult, ChapterCleanResult, Confidence, TextIssue
 
@@ -217,7 +217,7 @@ def write_reviewed_output(
             accepted,
         )
         path = chapter_dir / chapter.source_path.name
-        atomic_write_text(path, chapter.cleaned_text.strip() + "\n")
+        path = safe_atomic_write_text(path, chapter.cleaned_text.strip() + "\n")
         paths[chapter.source_path.name] = path
 
     cleaned_book = _write_cleaned_book(result)
@@ -238,8 +238,7 @@ def _write_cleaned_book(result: BookCleanResult) -> Path:
     for chapter in result.chapters:
         lines.extend([chapter.title, "", chapter.cleaned_text.strip(), ""])
     path = result.output_dir / f"{safe_filename(result.book_dir.name, fallback='novel')}_清洗版.txt"
-    atomic_write_text(path, "\n".join(lines).rstrip() + "\n")
-    return path
+    return safe_atomic_write_text(path, "\n".join(lines).rstrip() + "\n")
 
 
 def _write_decisions(
@@ -266,4 +265,4 @@ def _write_decisions(
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "chapters": chapters,
     }
-    atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
+    safe_atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
