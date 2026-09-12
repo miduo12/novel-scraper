@@ -10,3 +10,6 @@ downloads/
 *.egg-info/
 .coverage
 htmlcov/
+/build/
+/dist/
+/NovelScraperDir.spec

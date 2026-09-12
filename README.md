@@ -1,60 +1,81 @@
-# 得奇小说网爬虫
+# 小说下载器
 
-一个可断点续爬的 Python 小说爬虫核心项目。当前优先适配得奇小说网，完成核心抓取后再接入 PySide6 GUI。
+一个面向普通用户的 Windows 桌面小说下载工具。粘贴得奇小说网目录链接，选择保存位置，点击一次即可自动抓取全部章节并生成 TXT。
 
-## 已确认的站点结构
+## 直接下载使用
 
-- 小说目录：`https://www.deqixs.cc/books/99/`
-- 完整章节容器：`#list-chapterAll dd a[href]`，当前目录一次性返回全书章节。
-- 章节标题：`h1.pt10`，需要清理 `(第/页)` 一类页标记。
-- 当前章节正文使用两层加载：页面中的 `chapter.js.php` 提供签名，随后请求 `modules/article/ajax2.php` 获取正文。
-- 章节分页仍按 `?page=N` 请求。当前测试站对越界分页会返回同一页内容，所以程序对正文做规范化后计算 SHA-256；遇到重复正文立即停止，不重复保存。
+Windows 10/11 64 位用户可以直接下载单文件版本：
 
-## 当前功能
+**下载地址：** [NovelScraper.exe](https://github.com/miduo12/novel-scraper/releases/latest/download/NovelScraper.exe)
 
-- 从小说 URL 或章节 URL 推导目录地址。
-- 解析完整章节目录并打印章节 URL。
-- 抓取单个章节的全部分页并合并为完整章节。
-- 抓取整本小说，按章节分别保存并生成整本 TXT。
-- JSON 断点状态、已存在章节跳过、失败原因记录。
-- 网络失败自动重试、指数退避、请求间隔。
-- 按 URL 去重，限制最大分页数，防止异常循环。
-- 适配器分层，后续可以继续添加其他小说网站。
+使用方法：
 
-## 安装
+1. 下载 `NovelScraper.exe`。
+2. 双击运行，不需要安装 Python。
+3. 粘贴小说目录链接，例如 `https://www.deqixs.cc/books/99/`。
+4. 选择保存位置，默认是系统“下载/小说下载”。
+5. 点击“开始下载”，程序会自动读取目录、抓取章节并生成整本 TXT。
+
+> 当前 EXE 没有购买商业代码签名证书，Windows SmartScreen 首次运行时可能提示“未知发布者”。可以点击“更多信息”后选择“仍要运行”。如果希望发布给大量用户，后续应补充代码签名。
+
+## 桌面版功能
+
+- 粘贴网址即可使用，不需要命令行。
+- 自动显示书名、作者、当前章节和完成进度。
+- 支持停止任务，已完成的章节会保留。
+- 再次打开并下载同一本小说时，会自动跳过已完成章节，实现断点续爬。
+- 网络失败自动重试，失败章节会写入 `failed_chapters.txt`。
+- 每章保存为独立 TXT，同时合并生成整本 TXT。
+- 运行记录直接显示在窗口中。
+
+输出目录示例：
+
+```text
+小说下载/
+└── 玄鉴仙族/
+    ├── chapters/
+    │   ├── 0001_第1章 初入.txt
+    │   └── ...
+    ├── state.json
+    ├── failed_chapters.txt
+    └── 玄鉴仙族.txt
+```
+
+## 当前适配范围
+
+当前版本优先完整适配得奇小说网 `deqixs.cc`，不是“理论上支持所有网站”的通用爬虫。站点结构变化后，需要更新 `src/novel_scraper/adapters/deqixs.py`。
+
+当前已确认的站点结构：
+
+- 完整章节目录：`#list-chapterAll dd a[href]`。
+- 章节标题：`h1.pt10`。
+- 正文签名：页面中的 `chapter.js.php`。
+- 正文接口：`modules/article/ajax2.php`。
+- 分页请求使用 `?page=N`，越界时可能重复返回最后一页。程序会对提取后的正文计算 SHA-256，发现重复立即停止。
+
+## 从源码运行桌面版
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[gui]"
+python -m novel_scraper.gui
 ```
 
-当前开发环境也可以直接运行，因为已经安装 `requests` 和 `beautifulsoup4`。
+如果 PyPI 下载速度较慢，可以使用镜像：
 
-## 命令行用法
+```powershell
+python -m pip install -e ".[gui]" -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
 
-### 1. 查看完整目录
+## 命令行版本
+
+桌面版和命令行版共用同一个爬虫核心，也可以继续使用 CLI：
 
 ```powershell
 python -m novel_scraper chapters "https://www.deqixs.cc/books/99/"
-```
-
-### 2. 抓取一个章节的所有分页
-
-```powershell
 python -m novel_scraper chapter "https://www.deqixs.cc/books/99/63332.html"
-```
-
-### 3. 抓取整本小说
-
-```powershell
-python -m novel_scraper crawl "https://www.deqixs.cc/books/99/"
-```
-
-首次联调建议只抓前三章并用较小间隔：
-
-```powershell
-python -m novel_scraper crawl "https://www.deqixs.cc/books/99/" --limit 3 --delay 0.5
+python -m novel_scraper crawl "https://www.deqixs.cc/books/99/" --limit 3 --delay 1.0
 ```
 
 常用参数：
@@ -65,26 +86,18 @@ python -m novel_scraper crawl "https://www.deqixs.cc/books/99/" --limit 3 --dela
 - `--limit 3`：只处理前 N 章，适合联调。
 - `--force`：忽略已有断点，重新抓取本次范围内的章节。
 
-## 输出目录
+## 构建 Windows EXE
 
-默认输出到 `downloads/书名/`：
-
-```text
-downloads/
-└── 玄鉴仙族/
-    ├── chapters/
-    │   ├── 0001_第1章 初入.txt
-    │   └── ...
-    ├── state.json
-    ├── failed_chapters.txt
-    └── 玄鉴仙族.txt
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
 ```
 
-每章抓取成功后会立即写入独立文件并更新 `state.json`。中途停止或断网后，再次执行同一命令会跳过已完成章节。整本 TXT 会在每次运行结束时重新合并当前已经存在的章节。
+构建产物位于 `dist/NovelScraper.exe`。该文件是 PyInstaller 单文件程序，可以复制到其他 Windows 10/11 64 位电脑直接运行。
 
 ## 测试
 
 ```powershell
+python -m pip install -e ".[gui,dev]"
 python -m pytest
 ```
 
@@ -95,11 +108,20 @@ $env:RUN_LIVE_TESTS="1"
 python -m pytest tests/test_live_deqixs.py -m integration
 ```
 
-`downloads/` 已加入 `.gitignore`，抓取到的正文不会推送到 GitHub。
+## 项目结构
 
-## 后续开发
+```text
+src/novel_scraper/
+├── adapters/       网站适配器
+├── cli.py          命令行入口
+├── crawler.py      断点、重试和事件流
+├── gui.py          PySide6 桌面界面
+├── gui_worker.py   GUI 后台线程
+├── http.py         HTTP 客户端
+├── parsers.py      HTML 正文解析
+└── storage.py      TXT、状态和失败记录
+```
 
-1. 用当前 CLI 跑通小范围章节，确认正文和断点行为。
-2. 增加更多异常结构测试和站点变化检测。
-3. 接入 PySide6 GUI，复用 `NovelCrawler`、`CrawlOptions` 和进度事件。
-4. 再抽象通用适配器接口，扩展到其他小说网站。
+## 合规说明
+
+请合理设置请求频率，仅用于个人学习、备份和已获授权的内容。不要使用本工具绕过付费、权限或访问控制，并遵守目标网站的服务条款和适用法律。

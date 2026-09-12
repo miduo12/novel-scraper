@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 
 from ..models import Book, Chapter, FetchedPage
 
@@ -25,5 +26,12 @@ class SiteAdapter(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def fetch_chapter_pages(self, chapter: Chapter, max_pages: int) -> tuple[FetchedPage, ...]:
+    def fetch_chapter_pages(
+        self,
+        chapter: Chapter,
+        max_pages: int,
+        *,
+        on_page: Callable[[int], None] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> tuple[FetchedPage, ...]:
         raise NotImplementedError

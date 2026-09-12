@@ -16,3 +16,7 @@ class UnsupportedSiteError(ScraperError):
 
 class ChapterContentError(ScraperError):
     """章节正文为空或无法获取。"""
+
+
+class CrawlCancelled(ScraperError):
+    """用户主动停止抓取。"""

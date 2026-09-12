@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse, urlunparse
 
-from ..exceptions import ChapterContentError, FetchError, ParseError
+from ..exceptions import ChapterContentError, CrawlCancelled, FetchError, ParseError
 from ..models import Book, Chapter, FetchedPage
 from ..parsers import (
     clean_node_text,
@@ -120,7 +121,14 @@ class DeqixsAdapter(SiteAdapter):
                 title = str(meta_title["content"]).split("_", 1)[-1]
         return strip_page_marker(title)
 
-    def fetch_chapter_pages(self, chapter: Chapter, max_pages: int) -> tuple[FetchedPage, ...]:
+    def fetch_chapter_pages(
+        self,
+        chapter: Chapter,
+        max_pages: int,
+        *,
+        on_page: Callable[[int], None] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> tuple[FetchedPage, ...]:
         if max_pages < 1:
             raise ValueError("max_pages must be greater than or equal to 1")
 
@@ -128,6 +136,11 @@ class DeqixsAdapter(SiteAdapter):
         seen_hashes: set[str] = set()
 
         for page_number in range(1, max_pages + 1):
+            if should_cancel is not None and should_cancel():
+                raise CrawlCancelled("用户已停止抓取")
+            if on_page is not None:
+                on_page(page_number)
+
             page_url = make_page_url(chapter.url, page_number)
             logger.info("    page %d", page_number)
             page_html = self.http.get_text(
