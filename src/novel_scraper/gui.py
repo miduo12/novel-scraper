@@ -10,6 +10,7 @@ from PySide6.QtCore import QSettings, QStandardPaths, Qt, QTimer, QUrl
 from PySide6.QtGui import QCloseEvent, QDesktopServices, QDragEnterEvent, QDropEvent, QIcon
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -107,6 +108,18 @@ class MainWindow(QMainWindow):
         form.addWidget(output_label)
         form.addLayout(output_row)
 
+        speed_label = QLabel("下载速度")
+        speed_label.setObjectName("fieldLabel")
+        self.speed_combo = QComboBox()
+        self.speed_combo.setObjectName("speedCombo")
+        self.speed_combo.setMinimumHeight(40)
+        self.speed_combo.addItem("稳定（0.5 秒）", 0.5)
+        self.speed_combo.addItem("快速（0.2 秒，推荐）", 0.2)
+        self.speed_combo.addItem("极速（0.05 秒，谨慎）", 0.05)
+        self.speed_combo.setCurrentIndex(1)
+        form.addWidget(speed_label)
+        form.addWidget(self.speed_combo)
+
         action_row = QHBoxLayout()
         action_row.setSpacing(10)
         self.start_button = QPushButton("开始下载")
@@ -197,6 +210,10 @@ class MainWindow(QMainWindow):
             QLineEdit { border: 1px solid #cfd8e8; border-radius: 9px; padding: 8px 12px;
                         background: #fbfcff; font-size: 14px; selection-background-color: #2f6fed; }
             QLineEdit:focus { border: 2px solid #2f6fed; background: white; }
+            QComboBox { border: 1px solid #cfd8e8; border-radius: 9px; padding: 8px 12px;
+                        background: #fbfcff; font-size: 14px; color: #26344f; }
+            QComboBox:focus { border: 2px solid #2f6fed; background: white; }
+            QComboBox QAbstractItemView { background: white; color: #26344f; selection-background-color: #dbe7ff; }
             QPushButton { border-radius: 9px; padding: 9px 18px; font-size: 14px; font-weight: 600; }
             QPushButton#primaryButton { background: #2f6fed; color: white; border: none; min-width: 130px; }
             QPushButton#primaryButton:hover { background: #245bd0; }
@@ -224,10 +241,14 @@ class MainWindow(QMainWindow):
             QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DownloadLocation)
         ) / "小说下载"
         self.output_input.setText(str(self.settings.value("output_dir", default_output)))
+        saved_delay = float(self.settings.value("speed_delay", 0.2))
+        speed_index = self.speed_combo.findData(saved_delay)
+        self.speed_combo.setCurrentIndex(speed_index if speed_index >= 0 else 1)
 
     def _save_settings(self) -> None:
         self.settings.setValue("last_url", self.url_input.text().strip())
         self.settings.setValue("output_dir", self.output_input.text().strip())
+        self.settings.setValue("speed_delay", float(self.speed_combo.currentData()))
 
     def _choose_output_dir(self) -> None:
         selected = QFileDialog.getExistingDirectory(
@@ -273,7 +294,7 @@ class MainWindow(QMainWindow):
         self.worker = CrawlWorker(
             url,
             output_dir,
-            delay=1.0,
+            delay=float(self.speed_combo.currentData()),
             retries=3,
             parent=self,
         )

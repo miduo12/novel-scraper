@@ -73,7 +73,7 @@ def test_parse_chapter_title() -> None:
     assert adapter.parse_chapter_title(CHAPTER_HTML) == "第1章 开始"
 
 
-def test_fetch_chapter_pages_stops_on_duplicate_content() -> None:
+def test_fetch_chapter_pages_uses_single_complete_api_request() -> None:
     http = FakeHttp()
     adapter = DeqixsAdapter(http)
     book = adapter.parse_book(BOOK_HTML, "https://www.deqixs.cc/books/99/")
@@ -81,4 +81,4 @@ def test_fetch_chapter_pages_stops_on_duplicate_content() -> None:
 
     assert len(pages) == 1
     assert pages[0].content == "第一段\n\n第二段"
-    assert len(http.json_calls) == 2
+    assert len(http.json_calls) == 1

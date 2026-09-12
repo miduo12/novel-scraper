@@ -28,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("-o", "--output", type=Path, default=Path("downloads"), help="输出目录")
-    common.add_argument("--delay", type=float, default=1.0, help="请求之间的最短间隔秒数")
+    common.add_argument("--delay", type=float, default=0.2, help="请求之间的最短间隔秒数，默认 0.2")
     common.add_argument("--timeout", type=float, default=20.0, help="单次请求超时秒数")
     common.add_argument("--retries", type=int, default=3, help="失败后的额外重试次数")
     common.add_argument("--max-pages", type=int, default=100, help="单个章节的最大分页数")

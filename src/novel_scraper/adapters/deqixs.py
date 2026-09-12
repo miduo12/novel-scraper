@@ -14,7 +14,7 @@ from ..parsers import (
     strip_leading_chapter_heading,
     strip_page_marker,
 )
-from ..utils import content_hash, make_page_url
+from ..utils import make_page_url
 from .base import SiteAdapter
 
 logger = logging.getLogger(__name__)
@@ -132,40 +132,30 @@ class DeqixsAdapter(SiteAdapter):
         if max_pages < 1:
             raise ValueError("max_pages must be greater than or equal to 1")
 
-        pages: list[FetchedPage] = []
-        seen_hashes: set[str] = set()
+        if should_cancel is not None and should_cancel():
+            raise CrawlCancelled("用户已停止抓取")
+        if on_page is not None:
+            on_page(1)
 
-        for page_number in range(1, max_pages + 1):
-            if should_cancel is not None and should_cancel():
-                raise CrawlCancelled("用户已停止抓取")
-            if on_page is not None:
-                on_page(page_number)
+        page_url = make_page_url(chapter.url, 1)
+        logger.info("    请求整章正文")
 
-            page_url = make_page_url(chapter.url, page_number)
-            logger.info("    page %d", page_number)
-            page_html = self.http.get_text(
-                page_url,
-                headers={"Referer": chapter.url},
-            )
+        # The current Deqixs ajax2 endpoint returns the complete chapter in one
+        # response. Avoid fetching the HTML shell and a duplicate ?page=2.
+        try:
+            fragment = self._fetch_ajax_content(None, page_url)
+        except ChapterContentError:
+            # Fallback for a future/site variant that embeds the text in HTML.
+            page_html = self.http.get_text(page_url, headers={"Referer": chapter.url})
             fragment = self._embedded_content(page_html)
             if not fragment:
                 fragment = self._fetch_ajax_content(page_html, page_url)
 
-            text = strip_leading_chapter_heading(html_fragment_to_text(fragment))
-            if not text:
-                raise ChapterContentError(f"章节正文为空：{page_url}")
+        text = strip_leading_chapter_heading(html_fragment_to_text(fragment))
+        if not text:
+            raise ChapterContentError(f"章节正文为空：{page_url}")
 
-            digest = content_hash(text)
-            if digest in seen_hashes:
-                logger.info("    page %d 与上一页内容相同，章节结束", page_number)
-                break
-
-            seen_hashes.add(digest)
-            pages.append(FetchedPage(number=page_number, url=page_url, content=text))
-        else:
-            logger.warning("    达到最大分页数 %d，停止该章节", max_pages)
-
-        return tuple(pages)
+        return (FetchedPage(number=1, url=page_url, content=text),)
 
     def _embedded_content(self, html: str) -> str:
         soup = make_soup(html)
@@ -175,14 +165,18 @@ class DeqixsAdapter(SiteAdapter):
         fragment = "".join(str(child) for child in container.contents)
         return fragment if html_fragment_to_text(fragment) else ""
 
-    def _fetch_ajax_content(self, page_html: str, page_url: str) -> str:
-        soup = make_soup(page_html)
-        script = soup.select_one('script[src*="chapter.js.php"]')
-        if script is None or not script.get("src"):
-            raise ChapterContentError(f"章节页没有正文容器或签名脚本：{page_url}")
-
+    def _fetch_ajax_content(self, page_html: str | None, page_url: str) -> str:
         canonical_url = make_page_url(page_url, 1)
-        script_url = urljoin(canonical_url, str(script["src"]))
+        script_url = self._script_url(canonical_url)
+        if not script_url:
+            if page_html is None:
+                raise ChapterContentError(f"无法构造章节签名地址：{page_url}")
+            soup = make_soup(page_html)
+            script = soup.select_one('script[src*="chapter.js.php"]')
+            if script is None or not script.get("src"):
+                raise ChapterContentError(f"章节页没有正文容器或签名脚本：{page_url}")
+            script_url = urljoin(canonical_url, str(script["src"]))
+
         script_url = self._replace_query_value(script_url, "referrer", canonical_url)
         script_headers = {
             "Accept": "*/*",
@@ -223,6 +217,23 @@ class DeqixsAdapter(SiteAdapter):
         if not isinstance(data, dict) or not data.get("content"):
             raise ChapterContentError(f"正文接口没有返回内容：{page_url}")
         return str(data["content"])
+
+    @staticmethod
+    def _script_url(chapter_url: str) -> str:
+        parsed = urlparse(chapter_url)
+        match = re.match(r"^/books/(?P<aid>\d+)/(?P<cid>\d+)\.html$", parsed.path)
+        if not match:
+            return ""
+        query = urlencode(
+            {
+                "aid": match.group("aid"),
+                "cid": match.group("cid"),
+                "referrer": chapter_url,
+            }
+        )
+        return urlunparse(
+            (parsed.scheme, parsed.netloc, "/scripts/chapter.js.php", "", query, "")
+        )
 
     @staticmethod
     def _origin(url: str) -> str:

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass(slots=True)
 class CrawlOptions:
     output_dir: Path = Path("downloads")
-    delay: float = 1.0
+    delay: float = 0.2
     timeout: float = 20.0
     retries: int = 3
     max_pages: int = 100

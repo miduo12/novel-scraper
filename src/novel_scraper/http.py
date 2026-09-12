@@ -17,7 +17,7 @@ RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
 
 @dataclass(slots=True)
 class HttpClient:
-    delay: float = 1.0
+    delay: float = 0.2
     timeout: float = 20.0
     retries: int = 3
     backoff_factor: float = 1.5
