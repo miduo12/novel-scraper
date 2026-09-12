@@ -14,7 +14,8 @@ Windows 10/11 64 位用户可以直接下载单文件版本：
 2. 双击运行，不需要安装 Python。
 3. 粘贴小说目录链接，例如 `https://www.deqixs.cc/books/99/`。
 4. 选择保存位置，默认是系统“下载/小说下载”。
-5. 点击“开始下载”，程序会自动读取目录、抓取章节并生成整本 TXT。
+5. 如果只下载部分章节，勾选“仅下载指定范围”并填写起始、结束章节；不勾选则下载全部章节。
+6. 点击“开始下载”，完成后会同时保留 `chapters/` 分章 TXT 和书籍根目录下的合并 TXT。
 
 > 当前 EXE 没有购买商业代码签名证书，Windows SmartScreen 首次运行时可能提示“未知发布者”。可以点击“更多信息”后选择“仍要运行”。如果希望发布给大量用户，后续应补充代码签名。
 
@@ -23,10 +24,11 @@ Windows 10/11 64 位用户可以直接下载单文件版本：
 - 粘贴网址即可使用，不需要命令行。
 - 自动显示书名、作者、当前章节和完成进度。
 - 支持停止任务，已完成的章节会保留。
+- 支持自定义“从第 N 章到第 M 章”的下载范围。
 - 内置“稳定 / 快速 / 极速”三档下载速度，默认使用快速模式。
 - 再次打开并下载同一本小说时，会自动跳过已完成章节，实现断点续爬。
 - 网络失败自动重试，失败章节会写入 `failed_chapters.txt`。
-- 每章保存为独立 TXT，同时合并生成整本 TXT。
+- 每章保存为独立 TXT，同时自动合并生成书籍根目录下的完整 TXT。
 - 运行记录直接显示在窗口中。
 
 输出目录示例：
@@ -77,7 +79,7 @@ python -m pip install -e ".[gui]" -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```powershell
 python -m novel_scraper chapters "https://www.deqixs.cc/books/99/"
 python -m novel_scraper chapter "https://www.deqixs.cc/books/99/63332.html"
-python -m novel_scraper crawl "https://www.deqixs.cc/books/99/" --limit 3 --delay 1.0
+python -m novel_scraper crawl "https://www.deqixs.cc/books/99/" --from-chapter 100 --to-chapter 200 --delay 0.2
 ```
 
 常用参数：
@@ -85,7 +87,9 @@ python -m novel_scraper crawl "https://www.deqixs.cc/books/99/" --limit 3 --dela
 - `--delay 1.0`：请求之间的最短间隔秒数。
 - `--retries 3`：网络失败后的额外重试次数。
 - `--max-pages 100`：单章最大分页数，防止异常页面导致无限循环。
-- `--limit 3`：只处理前 N 章，适合联调。
+- `--from-chapter 100`：从第 100 章开始（包含）。
+- `--to-chapter 200`：抓到第 200 章结束（包含）。
+- `--limit 3`：从选定范围中最多处理前 N 章，适合联调。
 - `--force`：忽略已有断点，重新抓取本次范围内的章节。
 
 ## 构建 Windows EXE

@@ -10,6 +10,7 @@ from PySide6.QtCore import QSettings, QStandardPaths, Qt, QTimer, QUrl
 from PySide6.QtGui import QCloseEvent, QDesktopServices, QDragEnterEvent, QDropEvent, QIcon
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QFrame,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSizePolicy,
+    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -48,6 +50,8 @@ class MainWindow(QMainWindow):
         self.settings = QSettings(APP_ORGANIZATION, "NovelScraper")
         self.worker: CrawlWorker | None = None
         self.last_output_path: Path | None = None
+        self.last_combined_path: Path | None = None
+        self._chapter_total = 0
         self._closing = False
         self._build_ui()
         self._restore_settings()
@@ -119,6 +123,39 @@ class MainWindow(QMainWindow):
         self.speed_combo.setCurrentIndex(1)
         form.addWidget(speed_label)
         form.addWidget(self.speed_combo)
+
+        range_label = QLabel("章节范围")
+        range_label.setObjectName("fieldLabel")
+        range_row = QHBoxLayout()
+        range_row.setSpacing(8)
+        self.range_checkbox = QCheckBox("仅下载指定范围")
+        self.start_spin = QSpinBox()
+        self.start_spin.setRange(1, 999999)
+        self.start_spin.setValue(1)
+        self.start_spin.setPrefix("第 ")
+        self.start_spin.setSuffix(" 章")
+        self.start_spin.setMinimumWidth(115)
+        self.end_spin = QSpinBox()
+        self.end_spin.setRange(1, 999999)
+        self.end_spin.setValue(1)
+        self.end_spin.setPrefix("第 ")
+        self.end_spin.setSuffix(" 章")
+        self.end_spin.setMinimumWidth(115)
+        range_to = QLabel("至")
+        range_row.addWidget(self.range_checkbox)
+        range_row.addStretch(1)
+        range_row.addWidget(self.start_spin)
+        range_row.addWidget(range_to)
+        range_row.addWidget(self.end_spin)
+        form.addWidget(range_label)
+        form.addLayout(range_row)
+        self.range_checkbox.toggled.connect(self._toggle_chapter_range)
+        self._toggle_chapter_range(False)
+
+        output_note = QLabel("完成后会同时保存 chapters/ 分章 TXT 和书籍根目录下的整本 TXT。")
+        output_note.setObjectName("helperLabel")
+        output_note.setWordWrap(True)
+        form.addWidget(output_note)
 
         action_row = QHBoxLayout()
         action_row.setSpacing(10)
@@ -206,6 +243,7 @@ class MainWindow(QMainWindow):
             QLabel#chapterLabel { font-size: 13px; color: #5f6f8c; }
             QLabel#progressLabel { font-size: 14px; font-weight: 700; color: #2f6fed; }
             QLabel#footer { font-size: 12px; color: #8a94a8; }
+            QLabel#helperLabel { font-size: 12px; color: #71809b; }
             QFrame#card { background: white; border: 1px solid #e1e7f2; border-radius: 14px; }
             QLineEdit { border: 1px solid #cfd8e8; border-radius: 9px; padding: 8px 12px;
                         background: #fbfcff; font-size: 14px; selection-background-color: #2f6fed; }
@@ -214,6 +252,10 @@ class MainWindow(QMainWindow):
                         background: #fbfcff; font-size: 14px; color: #26344f; }
             QComboBox:focus { border: 2px solid #2f6fed; background: white; }
             QComboBox QAbstractItemView { background: white; color: #26344f; selection-background-color: #dbe7ff; }
+            QSpinBox { border: 1px solid #cfd8e8; border-radius: 9px; padding: 7px 10px;
+                        background: #fbfcff; font-size: 14px; color: #26344f; }
+            QSpinBox:disabled { color: #9aa5b8; background: #f4f6f9; }
+            QCheckBox { font-size: 13px; color: #34425e; spacing: 7px; }
             QPushButton { border-radius: 9px; padding: 9px 18px; font-size: 14px; font-weight: 600; }
             QPushButton#primaryButton { background: #2f6fed; color: white; border: none; min-width: 130px; }
             QPushButton#primaryButton:hover { background: #245bd0; }
@@ -244,11 +286,30 @@ class MainWindow(QMainWindow):
         saved_delay = float(self.settings.value("speed_delay", 0.2))
         speed_index = self.speed_combo.findData(saved_delay)
         self.speed_combo.setCurrentIndex(speed_index if speed_index >= 0 else 1)
+        self.start_spin.setValue(int(self.settings.value("start_chapter", 1)))
+        self.end_spin.setValue(int(self.settings.value("end_chapter", 1)))
+        range_enabled = str(self.settings.value("range_enabled", "false")).lower() == "true"
+        self.range_checkbox.setChecked(range_enabled)
+        self._toggle_chapter_range(range_enabled)
 
     def _save_settings(self) -> None:
         self.settings.setValue("last_url", self.url_input.text().strip())
         self.settings.setValue("output_dir", self.output_input.text().strip())
         self.settings.setValue("speed_delay", float(self.speed_combo.currentData()))
+        self.settings.setValue("range_enabled", self.range_checkbox.isChecked())
+        self.settings.setValue("start_chapter", self.start_spin.value())
+        self.settings.setValue("end_chapter", self.end_spin.value())
+
+    def _toggle_chapter_range(self, enabled: bool) -> None:
+        self.start_spin.setEnabled(enabled)
+        self.end_spin.setEnabled(enabled)
+
+    def _configure_chapter_range(self, total: int) -> None:
+        self._chapter_total = total
+        self.start_spin.setMaximum(max(1, total))
+        self.end_spin.setMaximum(max(1, total))
+        if not self.range_checkbox.isChecked() or self.end_spin.value() in {1, self.end_spin.maximum()}:
+            self.end_spin.setValue(total)
 
     def _choose_output_dir(self) -> None:
         selected = QFileDialog.getExistingDirectory(
@@ -269,6 +330,15 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "暂不支持", "当前桌面版暂只适配得奇小说网 deqixs.cc。")
             return
 
+        start_chapter = None
+        end_chapter = None
+        if self.range_checkbox.isChecked():
+            start_chapter = self.start_spin.value()
+            end_chapter = self.end_spin.value()
+            if start_chapter > end_chapter:
+                QMessageBox.warning(self, "章节范围不正确", "起始章节不能大于结束章节。")
+                return
+
         try:
             output_dir = Path(output_text).expanduser()
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -283,6 +353,10 @@ class MainWindow(QMainWindow):
         self.stop_button.setEnabled(True)
         self.url_input.setEnabled(False)
         self.output_input.setEnabled(False)
+        self.speed_combo.setEnabled(False)
+        self.range_checkbox.setEnabled(False)
+        self.start_spin.setEnabled(False)
+        self.end_spin.setEnabled(False)
         self.book_label.setText("正在解析小说目录…")
         self.chapter_label.setText("首次使用请保持网络连接")
         self.progress_label.setText("0 / 0")
@@ -296,6 +370,8 @@ class MainWindow(QMainWindow):
             output_dir,
             delay=float(self.speed_combo.currentData()),
             retries=3,
+            start_chapter=start_chapter,
+            end_chapter=end_chapter,
             parent=self,
         )
         self.worker.event_received.connect(self._handle_event)
@@ -312,6 +388,8 @@ class MainWindow(QMainWindow):
             self.worker.request_cancel()
 
     def _handle_event(self, event: CrawlEvent) -> None:
+        if event.kind == "book_loaded":
+            self._configure_chapter_range(event.book_total or event.total)
         if event.book_title:
             self.book_label.setText(f"《{event.book_title}》  作者：{event.author or '未知'}")
         if event.total > 0:
@@ -338,16 +416,18 @@ class MainWindow(QMainWindow):
             self._append_log(event.message)
 
     def _handle_success(self, result: CrawlResult) -> None:
-        self.last_output_path = Path(result.output_path)
+        self.last_combined_path = Path(result.output_path)
+        self.last_output_path = self.last_combined_path.parent
         self.progress_bar.setValue(self.progress_bar.maximum())
-        self.chapter_label.setText(f"下载完成：{self.last_output_path}")
-        self._append_log(f"文件已保存：{self.last_output_path}")
+        self.chapter_label.setText(f"整本 TXT：{self.last_combined_path}")
+        self._append_log(f"分章目录：{result.chapters_path}")
+        self._append_log(f"整本 TXT：{self.last_combined_path}")
         self._finish_ui()
         if not self._closing:
             QMessageBox.information(
                 self,
                 "下载完成",
-                f"小说已保存到：\n{self.last_output_path}",
+                f"分章 TXT 目录：\n{result.chapters_path}\n\n整本 TXT：\n{self.last_combined_path}",
             )
 
     def _handle_failure(self, message: str) -> None:
@@ -369,6 +449,9 @@ class MainWindow(QMainWindow):
         self.stop_button.setEnabled(False)
         self.url_input.setEnabled(True)
         self.output_input.setEnabled(True)
+        self.speed_combo.setEnabled(True)
+        self.range_checkbox.setEnabled(True)
+        self._toggle_chapter_range(self.range_checkbox.isChecked())
         self.open_button.setEnabled(self.last_output_path is not None)
         self.worker = None
 

@@ -42,6 +42,22 @@ def build_parser() -> argparse.ArgumentParser:
     crawl = subparsers.add_parser("crawl", parents=[common], help="抓取整本小说并生成 TXT")
     crawl.add_argument("url", help="小说目录 URL 或章节 URL")
     crawl.add_argument("--limit", type=int, default=None, help="最多处理前 N 章，便于测试")
+    crawl.add_argument(
+        "--from-chapter",
+        "--start",
+        dest="start_chapter",
+        type=int,
+        default=None,
+        help="从第 N 章开始（包含），默认第 1 章",
+    )
+    crawl.add_argument(
+        "--to-chapter",
+        "--end",
+        dest="end_chapter",
+        type=int,
+        default=None,
+        help="抓到第 N 章结束（包含），默认最后一章",
+    )
     crawl.add_argument("--force", action="store_true", help="忽略断点，重新抓取指定章节")
 
     return parser
@@ -105,6 +121,8 @@ def _options(args: argparse.Namespace) -> CrawlOptions:
         retries=args.retries,
         max_pages=args.max_pages,
         limit=getattr(args, "limit", None),
+        start_chapter=getattr(args, "start_chapter", None),
+        end_chapter=getattr(args, "end_chapter", None),
         force=getattr(args, "force", False),
     )
 

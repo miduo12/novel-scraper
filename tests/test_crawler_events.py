@@ -19,9 +19,16 @@ class FakeHttp:
 class FakeAdapter:
     name = "fake"
 
-    def __init__(self) -> None:
+    def __init__(self, chapter_count: int = 1) -> None:
         self.http = FakeHttp()
-        self.chapter = Chapter(index=1, title="第1章", url="https://example.com/1.html")
+        self.chapters = tuple(
+            Chapter(
+                index=index,
+                title=f"第{index}章",
+                url=f"https://example.com/{index}.html",
+            )
+            for index in range(1, chapter_count + 1)
+        )
 
     def normalize_book_url(self, url: str) -> str:
         return "https://example.com/book/"
@@ -32,7 +39,7 @@ class FakeAdapter:
             author="测试作者",
             description="",
             source_url=source_url,
-            chapters=(self.chapter,),
+            chapters=self.chapters,
         )
 
     def fetch_chapter_pages(self, chapter, max_pages, *, on_page=None, should_cancel=None):
@@ -40,13 +47,20 @@ class FakeAdapter:
             on_page(1)
         if should_cancel and should_cancel():
             raise CrawlCancelled("用户已停止抓取")
-        return (FetchedPage(number=1, url=chapter.url, content="正文"),)
+        return (FetchedPage(number=1, url=chapter.url, content=f"{chapter.title}正文"),)
 
 
-def make_crawler(tmp_path: Path, callback, cancel_event=None) -> NovelCrawler:
+def make_crawler(
+    tmp_path: Path,
+    callback,
+    cancel_event=None,
+    *,
+    options: CrawlOptions | None = None,
+    chapter_count: int = 1,
+) -> NovelCrawler:
     return NovelCrawler(
-        FakeAdapter(),
-        CrawlOptions(output_dir=tmp_path),
+        FakeAdapter(chapter_count),
+        options or CrawlOptions(output_dir=tmp_path),
         progress_callback=callback,
         cancel_event=cancel_event,
     )
@@ -58,6 +72,8 @@ def test_crawler_emits_progress_events(tmp_path: Path) -> None:
     result = crawler.crawl_book("https://example.com/book/1.html")
 
     assert result.completed == 1
+    assert result.output_path.exists()
+    assert result.chapters_path.exists()
     assert [event.kind for event in events] == [
         "book_loaded",
         "chapter_started",
@@ -65,6 +81,24 @@ def test_crawler_emits_progress_events(tmp_path: Path) -> None:
         "chapter_completed",
         "finished",
     ]
+
+
+def test_crawler_downloads_only_selected_chapter_range(tmp_path: Path) -> None:
+    events = []
+    options = CrawlOptions(output_dir=tmp_path, start_chapter=2, end_chapter=4)
+    crawler = make_crawler(tmp_path, events.append, options=options, chapter_count=5)
+    result = crawler.crawl_book("https://example.com/book/1.html")
+
+    started = [event.chapter_title for event in events if event.kind == "chapter_started"]
+    assert started == ["第2章", "第3章", "第4章"]
+    assert result.completed == 3
+    assert result.output_path.exists()
+    combined = result.output_path.read_text(encoding="utf-8")
+    assert "第2章正文" in combined
+    assert "第3章正文" in combined
+    assert "第4章正文" in combined
+    assert "第1章正文" not in combined
+    assert "第5章正文" not in combined
 
 
 def test_crawler_can_be_cancelled(tmp_path: Path) -> None:

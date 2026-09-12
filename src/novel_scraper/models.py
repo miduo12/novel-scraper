@@ -31,6 +31,7 @@ class FetchedPage:
 class CrawlResult:
     book: Book
     output_path: Path
+    chapters_path: Path
     completed: int
     skipped: int
     failed: int

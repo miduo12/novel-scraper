@@ -24,6 +24,8 @@ class CrawlWorker(QThread):
         *,
         delay: float,
         retries: int,
+        start_chapter: int | None = None,
+        end_chapter: int | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -31,6 +33,8 @@ class CrawlWorker(QThread):
         self.output_dir = output_dir
         self.delay = delay
         self.retries = retries
+        self.start_chapter = start_chapter
+        self.end_chapter = end_chapter
         self._cancel_event = threading.Event()
 
     def request_cancel(self) -> None:
@@ -43,6 +47,8 @@ class CrawlWorker(QThread):
             timeout=20.0,
             retries=self.retries,
             max_pages=100,
+            start_chapter=self.start_chapter,
+            end_chapter=self.end_chapter,
         )
         try:
             with NovelCrawler.from_url(

@@ -23,6 +23,8 @@ class CrawlOptions:
     retries: int = 3
     max_pages: int = 100
     limit: int | None = None
+    start_chapter: int | None = None
+    end_chapter: int | None = None
     force: bool = False
 
 
@@ -77,6 +79,7 @@ class NovelCrawler:
         chapter: Chapter | None = None,
         completed: int = 0,
         total: int = 0,
+        book_total: int = 0,
         failed: int = 0,
         page: int = 0,
         output_path: Path | None = None,
@@ -91,6 +94,7 @@ class NovelCrawler:
             chapter_title=chapter.title if chapter is not None else "",
             completed=completed,
             total=total,
+            book_total=book_total,
             failed=failed,
             page=page,
             output_path=output_path,
@@ -119,7 +123,17 @@ class NovelCrawler:
 
     def crawl_book(self, url: str) -> CrawlResult:
         book = self.fetch_book(url)
-        chapters = book.chapters
+        total_chapters = len(book.chapters)
+        start = self.options.start_chapter or 1
+        end = self.options.end_chapter or total_chapters
+        if start < 1:
+            raise ValueError("起始章节必须大于或等于 1")
+        if end < start:
+            raise ValueError("结束章节不能小于起始章节")
+        if start > total_chapters:
+            raise ValueError(f"起始章节超出目录范围，当前共 {total_chapters} 章")
+        end = min(end, total_chapters)
+        chapters = book.chapters[start - 1 : end]
         if self.options.limit is not None:
             chapters = chapters[: max(0, self.options.limit)]
 
@@ -142,6 +156,7 @@ class NovelCrawler:
             f"《{book.title}》 作者：{book.author or '未知'}，本次处理 {total} 章",
             book=book,
             total=total,
+            book_total=total_chapters,
         )
 
         for position, chapter in enumerate(chapters, start=1):
@@ -246,6 +261,7 @@ class NovelCrawler:
         return CrawlResult(
             book=book,
             output_path=output_path,
+            chapters_path=storage.chapters_dir,
             completed=completed,
             skipped=skipped,
             failed=failed,
