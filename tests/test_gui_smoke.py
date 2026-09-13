@@ -33,6 +33,13 @@ def test_main_window_can_be_created() -> None:
     assert window.speed_combo.currentData() in {0.05, 0.2, 0.5}
     assert window.minimumHeight() >= 650
     assert isinstance(window.centralWidget(), QScrollArea)
+    window.range_checkbox.setChecked(True)
+    window.to_end_checkbox.setChecked(True)
+    window.start_spin.setValue(11)
+    assert window._selected_chapter_range() == (11, None)
+    window.to_end_checkbox.setChecked(False)
+    window.end_spin.setValue(20)
+    assert window._selected_chapter_range() == (11, 20)
     dialog = CleanerDialog(window)
     assert dialog.windowTitle() == "小说内容检测与保守清洗"
     assert dialog.mode_combo.count() == 2

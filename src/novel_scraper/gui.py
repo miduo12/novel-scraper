@@ -155,15 +155,20 @@ class MainWindow(QMainWindow):
         self.end_spin.setPrefix("第 ")
         self.end_spin.setSuffix(" 章")
         self.end_spin.setMinimumWidth(115)
+        self.to_end_checkbox = QCheckBox("抓到最后一章")
+        self.to_end_checkbox.setChecked(True)
+        self.to_end_checkbox.setToolTip("不需要知道小说总章数，一直抓到最新章节")
         range_to = QLabel("至")
         range_row.addWidget(self.range_checkbox)
         range_row.addStretch(1)
         range_row.addWidget(self.start_spin)
         range_row.addWidget(range_to)
         range_row.addWidget(self.end_spin)
+        range_row.addWidget(self.to_end_checkbox)
         form.addWidget(range_label)
         form.addLayout(range_row)
         self.range_checkbox.toggled.connect(self._toggle_chapter_range)
+        self.to_end_checkbox.toggled.connect(self._toggle_chapter_range)
         self._toggle_chapter_range(False)
 
         output_note = QLabel("完成后会同时保存 chapters/ 分章 TXT 和书籍根目录下的整本 TXT。")
@@ -312,6 +317,8 @@ class MainWindow(QMainWindow):
         self.start_spin.setValue(int(self.settings.value("start_chapter", 1)))
         self.end_spin.setValue(int(self.settings.value("end_chapter", 1)))
         range_enabled = str(self.settings.value("range_enabled", "false")).lower() == "true"
+        to_end = str(self.settings.value("to_end", "true")).lower() == "true"
+        self.to_end_checkbox.setChecked(to_end)
         self.range_checkbox.setChecked(range_enabled)
         self._toggle_chapter_range(range_enabled)
 
@@ -328,10 +335,21 @@ class MainWindow(QMainWindow):
         self.settings.setValue("range_enabled", self.range_checkbox.isChecked())
         self.settings.setValue("start_chapter", self.start_spin.value())
         self.settings.setValue("end_chapter", self.end_spin.value())
+        self.settings.setValue("to_end", self.to_end_checkbox.isChecked())
 
     def _toggle_chapter_range(self, enabled: bool) -> None:
+        self.to_end_checkbox.setEnabled(enabled)
         self.start_spin.setEnabled(enabled)
-        self.end_spin.setEnabled(enabled)
+        self.end_spin.setEnabled(enabled and not self.to_end_checkbox.isChecked())
+
+    def _selected_chapter_range(self) -> tuple[int | None, int | None]:
+        if not self.range_checkbox.isChecked():
+            return None, None
+        start = self.start_spin.value()
+        end = None if self.to_end_checkbox.isChecked() else self.end_spin.value()
+        if end is not None and start > end:
+            raise ValueError("起始章节不能大于结束章节")
+        return start, end
 
     def _configure_chapter_range(
         self,
@@ -368,14 +386,11 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "暂不支持", "当前桌面版支持得奇小说网和速读谷。")
             return
 
-        start_chapter = None
-        end_chapter = None
-        if self.range_checkbox.isChecked():
-            start_chapter = self.start_spin.value()
-            end_chapter = self.end_spin.value()
-            if start_chapter > end_chapter:
-                QMessageBox.warning(self, "章节范围不正确", "起始章节不能大于结束章节。")
-                return
+        try:
+            start_chapter, end_chapter = self._selected_chapter_range()
+        except ValueError:
+            QMessageBox.warning(self, "章节范围不正确", "起始章节不能大于结束章节。")
+            return
 
         try:
             output_dir = Path(output_text).expanduser()
