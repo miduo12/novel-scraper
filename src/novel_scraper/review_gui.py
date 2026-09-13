@@ -158,7 +158,9 @@ class ReviewDialog(QDialog):
             issues = list(chapter.issues)
             self.changes_by_chapter[chapter.title] = changes
             self.issues_by_chapter[chapter.title] = issues
-            self.accepted[chapter.title] = {change.index: True for change in changes}
+            self.accepted[chapter.title] = {
+                change.index: change.default_accepted for change in changes
+            }
             counts: dict[str, int] = {}
             for issue in issues:
                 counts[issue.category] = counts.get(issue.category, 0) + 1

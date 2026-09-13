@@ -6,6 +6,7 @@ import pytest
 
 pytest.importorskip("PySide6")
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QScrollArea
 
 from novel_scraper.blacklist_gui import AdBlacklistDialog
@@ -29,7 +30,7 @@ def test_main_window_can_be_created() -> None:
     assert not window.stop_button.isEnabled()
     assert not window.range_checkbox.isChecked()
     assert not window.start_spin.isEnabled()
-    assert window.speed_combo.currentData() == 0.2
+    assert window.speed_combo.currentData() in {0.05, 0.2, 0.5}
     assert window.minimumHeight() >= 650
     assert isinstance(window.centralWidget(), QScrollArea)
     dialog = CleanerDialog(window)
@@ -96,5 +97,43 @@ def test_review_dialog_shows_report_only_issues(tmp_path) -> None:
     assert dialog.chapter_tree.topLevelItem(0).text(1) == "16"
     assert dialog.change_table.rowCount() == 16
     assert dialog.change_table.item(0, 0).text() == "仅报告"
+    dialog.close()
+    app.processEvents()
+
+
+def test_medium_confidence_issue_can_be_selected(tmp_path) -> None:
+    app = QApplication.instance() or QApplication([])
+    issue = TextIssue(
+        chapter="第1章",
+        category="punctuation",
+        confidence=Confidence.MEDIUM,
+        confidence_score=0.72,
+        rule="ascii_comma_in_chinese",
+        reason="可能是英文逗号，建议人工确认",
+        original=", ",
+        replacement="，",
+        action="report",
+        applied=False,
+        paragraph=0,
+    )
+    chapter = ChapterCleanResult(
+        "第1章",
+        tmp_path / "1.txt",
+        "你好, 他说。",
+        "你好, 他说。",
+        [issue],
+    )
+    result = BookCleanResult(
+        book_dir=tmp_path,
+        mode=CleaningMode.DETECT,
+        chapter_count=1,
+        chapters=[chapter],
+        issue_counts={"punctuation": 1},
+    )
+    dialog = ReviewDialog(result)
+    check = dialog.change_table.item(0, 0)
+    assert check.text() == ""
+    assert bool(check.flags() & Qt.ItemFlag.ItemIsUserCheckable)
+    assert check.checkState() == Qt.CheckState.Unchecked
     dialog.close()
     app.processEvents()

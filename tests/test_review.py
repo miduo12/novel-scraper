@@ -119,3 +119,41 @@ def test_detect_mode_suggestions_can_be_reviewed_and_applied(tmp_path: Path) -> 
     assert changes[0].category == "punctuation"
     paths = write_reviewed_output(result, {"第1章": {0: True}})
     assert "他说道。" in paths["combined"].read_text(encoding="utf-8")
+
+
+def test_medium_confidence_change_can_be_applied_selectively() -> None:
+    issue = TextIssue(
+        chapter="第1章",
+        category="punctuation",
+        confidence=Confidence.MEDIUM,
+        confidence_score=0.72,
+        rule="ascii_comma_in_chinese",
+        reason="可能是英文逗号，建议人工确认",
+        original=", ",
+        replacement="，",
+        action="report",
+        applied=False,
+    )
+    chapter = ChapterCleanResult(
+        title="第1章",
+        source_path=Path("0001_第1章.txt"),
+        original_text="你好, 他说。",
+        cleaned_text="你好, 他说。",
+        issues=[issue],
+    )
+    changes = build_diff_changes(chapter)
+    target = next(change for change in changes if change.rule == issue.rule)
+    assert target.default_accepted is False
+
+    unchanged = apply_review_decisions(
+        chapter.original_text,
+        changes,
+        {change.index: False for change in changes},
+    )
+    changed = apply_review_decisions(
+        chapter.original_text,
+        changes,
+        {change.index: change.index == target.index for change in changes},
+    )
+    assert unchanged == "你好, 他说。"
+    assert changed == "你好，他说。"
