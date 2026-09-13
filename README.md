@@ -46,7 +46,7 @@ Windows 10/11 64 位用户可以直接下载单文件版本：
 
 ## 当前适配范围
 
-当前版本已适配：\n\n- 得奇小说网 `deqixs.cc`\n- 速读谷 `sudugu.cc`\n\n不是“理论上支持所有网站”的通用爬虫。站点结构变化后，需要更新对应适配器：\n\n- `src/novel_scraper/adapters/deqixs.py`\n- `src/novel_scraper/adapters/sudugu.py`\n\n速读谷章节采用 `章节ID_页码.html` 分页，适配器会读取页面中的“当前页 / 总页数”并合并完整章节。
+当前版本已适配：\n\n- 得奇小说网 `deqixs.cc`\n- 速读谷 `sudugu.cc`\n\n不是“理论上支持所有网站”的通用爬虫。站点结构变化后，需要更新对应适配器：\n\n- `src/novel_scraper/adapters/deqixs.py`\n- `src/novel_scraper/adapters/sudugu.py`\n\n速读谷章节采用 `章节ID_页码.html` 分页，适配器会读取页面中的“当前页 / 总页数”并合并完整章节。目录如果分成多页，程序会自动跟随“下一页”继续解析，并支持恢复 `data-enc` 中保存的隐藏末章地址。
 
 当前已确认的站点结构：
 

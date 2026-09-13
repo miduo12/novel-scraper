@@ -1,7 +1,7 @@
 from novel_scraper.adapters import adapter_for_url, is_supported_url
 from novel_scraper.adapters.sudugu import SuduguAdapter
 
-BOOK_HTML = """
+BOOK_PAGE_1 = """
 <!doctype html>
 <html>
 <head><title>阵问长生-速读谷-观虚小说-最新章节无错字免费阅读</title></head>
@@ -13,8 +13,19 @@ BOOK_HTML = """
 <li><a href="https://www.sudugu.cc/674/555753.html">第1章 墨画</a></li>
 <li><a href="https://www.sudugu.cc/674/555754.html">第2章 道碑</a></li>
 </ul></div>
+<div class="pager"><a href="/674/2">下一页</a></div>
 </body>
 </html>
+"""
+
+BOOK_PAGE_2 = """
+<!doctype html>
+<html><body>
+<div id="list"><ul>
+<li><a href="https://www.sudugu.cc/674/557092.html">第1001章 太子爷</a></li>
+<li><a class="js-protected-btn" data-enc="aHR0cHM6Ly93d3cuc3VkdWd1LmNjLzY3NC8zNTc1ODYzLmh0bWw=" href="javascript:void(0);">第1002章 玄字论剑</a></li>
+</ul></div>
+</body></html>
 """
 
 PAGE_1 = """
@@ -40,6 +51,8 @@ class FakeHttp:
 
     def get_text(self, url: str, **_kwargs: object) -> str:
         self.calls.append(url)
+        if url.rstrip("/").endswith("/674/2"):
+            return BOOK_PAGE_2
         if url.endswith("_2.html"):
             return PAGE_2
         return PAGE_1
@@ -50,15 +63,16 @@ def test_sudugu_is_registered() -> None:
     assert adapter_for_url("https://www.sudugu.cc/674/", FakeHttp()).name == "sudugu"
 
 
-def test_parse_sudugu_book_and_chapters() -> None:
+def test_parse_sudugu_book_and_paginated_chapters() -> None:
     adapter = SuduguAdapter(FakeHttp())
-    book = adapter.parse_book(BOOK_HTML, "https://www.sudugu.cc/674/")
+    book = adapter.parse_book(BOOK_PAGE_1, "https://www.sudugu.cc/674/")
 
     assert book.title == "阵问长生"
     assert book.author == "观虚"
-    assert len(book.chapters) == 2
+    assert len(book.chapters) == 4
     assert book.chapters[0].number == 1
     assert book.chapters[1].url == "https://www.sudugu.cc/674/555754.html"
+    assert book.chapters[3].url == "https://www.sudugu.cc/674/3575863.html"
 
 
 def test_normalize_sudugu_page_url() -> None:
@@ -67,19 +81,20 @@ def test_normalize_sudugu_page_url() -> None:
         adapter.normalize_book_url("https://www.sudugu.cc/674/555753_2.html")
         == "https://www.sudugu.cc/674/"
     )
+    assert adapter.normalize_book_url("https://www.sudugu.cc/674/1") == "https://www.sudugu.cc/674/"
     assert adapter.parse_chapter_title(PAGE_2) == "第1章 墨画"
 
 
 def test_fetch_all_sudugu_pages() -> None:
     http = FakeHttp()
     adapter = SuduguAdapter(http)
-    book = adapter.parse_book(BOOK_HTML, "https://www.sudugu.cc/674/")
+    book = adapter.parse_book(BOOK_PAGE_1, "https://www.sudugu.cc/674/")
     pages = adapter.fetch_chapter_pages(book.chapters[0], max_pages=10)
 
     assert len(pages) == 2
     assert pages[0].content == "第一页正文。"
     assert pages[1].content == "第二页正文。"
-    assert http.calls == [
+    assert http.calls[-2:] == [
         "https://www.sudugu.cc/674/555753.html",
         "https://www.sudugu.cc/674/555753_2.html",
     ]

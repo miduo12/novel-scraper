@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import logging
 import re
 from collections.abc import Callable
@@ -36,7 +37,7 @@ class SuduguAdapter(SiteAdapter):
 
     def normalize_book_url(self, url: str) -> str:
         parsed = urlparse(url)
-        match = re.match(r"^/(?P<book_id>\d+)(?:/[^/]*\.html)?/?$", parsed.path)
+        match = re.match(r"^/(?P<book_id>\d+)(?:/.*)?$", parsed.path)
         if not match:
             raise ParseError(f"无法从速读谷 URL 推导目录地址：{url}")
         return urlunparse(
@@ -77,18 +78,48 @@ class SuduguAdapter(SiteAdapter):
         )
 
     def parse_chapter_list(self, html: str, book_url: str) -> tuple[Chapter, ...]:
+        chapters: list[Chapter] = []
+        seen_urls: set[str] = set()
+        page_url = book_url
+        page_html = html
+
+        for _ in range(100):
+            chapters.extend(self._parse_chapter_page(page_html, page_url, seen_urls))
+            next_url = self._next_directory_url(page_html, page_url)
+            if not next_url:
+                break
+            page_url = next_url
+            page_html = self.http.get_text(page_url)
+        else:
+            logger.warning("目录分页超过 100 页，停止继续解析")
+
+        return tuple(
+            Chapter(
+                index=index,
+                title=chapter.title,
+                url=chapter.url,
+                number=chapter.number,
+            )
+            for index, chapter in enumerate(chapters, start=1)
+        )
+
+    def _parse_chapter_page(
+        self,
+        html: str,
+        page_url: str,
+        seen_urls: set[str],
+    ) -> list[Chapter]:
         soup = make_soup(html)
         container = soup.select_one("#list")
         if container is None:
             raise ParseError("未找到速读谷目录容器 #list")
 
         chapters: list[Chapter] = []
-        seen_urls: set[str] = set()
         for anchor in container.select("li a[href]"):
-            href = str(anchor.get("href", "")).strip()
+            href = self._chapter_href(anchor)
             if not href:
                 continue
-            chapter_url = urljoin(book_url, href)
+            chapter_url = urljoin(page_url, href)
             if chapter_url in seen_urls:
                 continue
             title = clean_node_text(anchor)
@@ -97,13 +128,42 @@ class SuduguAdapter(SiteAdapter):
             seen_urls.add(chapter_url)
             chapters.append(
                 Chapter(
-                    index=len(chapters) + 1,
+                    index=0,
                     title=title,
                     url=chapter_url,
                     number=parse_chapter_number(title),
                 )
             )
-        return tuple(chapters)
+        return chapters
+
+    @staticmethod
+    def _chapter_href(anchor: object) -> str:
+        href = str(anchor.get("href", "")).strip()
+        if href and not href.lower().startswith("javascript:"):
+            return href
+        encoded = anchor.get("data-enc")
+        if not encoded:
+            return ""
+        try:
+            return base64.b64decode(str(encoded)).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            return ""
+
+    @staticmethod
+    def _next_directory_url(html: str, current_url: str) -> str:
+        soup = make_soup(html)
+        current = urlparse(current_url)._replace(fragment="").geturl()
+        for anchor in soup.find_all("a", href=True):
+            if clean_node_text(anchor) != "下一页":
+                continue
+            next_url = urljoin(current_url, str(anchor["href"]))
+            parsed = urlparse(next_url)
+            if parsed.scheme not in {"http", "https"}:
+                continue
+            normalized = parsed._replace(fragment="").geturl()
+            if normalized != current:
+                return normalized
+        return ""
 
     def parse_chapter_title(self, html: str) -> str:
         soup = make_soup(html)

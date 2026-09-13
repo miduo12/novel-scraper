@@ -4,6 +4,7 @@ from novel_scraper import utils as utils_module
 from novel_scraper.utils import (
     atomic_write_text,
     content_hash,
+    extract_url,
     make_page_url,
     parse_chapter_number,
     safe_atomic_write_text,
@@ -63,3 +64,11 @@ def test_safe_atomic_write_uses_alternate_when_target_locked(tmp_path, monkeypat
     assert actual != target
     assert actual.read_text(encoding="utf-8") == "new"
     assert target.read_text(encoding="utf-8") == "old"
+
+
+def test_extract_url_from_pasted_text() -> None:
+    assert extract_url("https://www.sudugu.cc/674/1，这是什么bug") == "https://www.sudugu.cc/674/1"
+
+
+def test_extract_url_from_markdown() -> None:
+    assert extract_url("[小说](https://www.sudugu.cc/674/)") == "https://www.sudugu.cc/674/"

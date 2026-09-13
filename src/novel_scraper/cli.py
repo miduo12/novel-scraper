@@ -9,6 +9,7 @@ from . import __version__
 from .crawler import CrawlOptions, NovelCrawler
 from .exceptions import ScraperError
 from .text_cleaner import BookCleaner, CleaningMode
+from .utils import extract_url
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     setup_logging(args.log_level)
+    if hasattr(args, "url"):
+        args.url = extract_url(args.url)
 
     try:
         if args.command == "chapters":

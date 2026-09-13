@@ -36,6 +36,7 @@ from .events import CrawlEvent
 from .gui_worker import CrawlWorker
 from .models import CrawlResult
 from .ui_utils import apply_adaptive_size
+from .utils import extract_url
 
 APP_NAME = "小说下载器"
 APP_ORGANIZATION = "miduo12"
@@ -396,7 +397,8 @@ class MainWindow(QMainWindow):
             self.output_input.setText(selected)
 
     def _start_download(self) -> None:
-        url = self.url_input.text().strip()
+        url = extract_url(self.url_input.text())
+        self.url_input.setText(url)
         output_text = self.output_input.text().strip()
         if not url.startswith(("http://", "https://")):
             QMessageBox.warning(self, "网址不正确", "请粘贴完整的小说目录或章节网址。")

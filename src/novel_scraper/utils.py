@@ -138,3 +138,22 @@ def parse_chapter_number(title: str) -> int | None:
         return chinese_number_to_int(raw)
     except (KeyError, ValueError):
         return None
+
+
+_MARKDOWN_URL = re.compile(r"\[[^\]]+\]\((https?://[^)]+)\)", re.IGNORECASE)
+_URL_CANDIDATE = re.compile(
+    r"https?://[^\s\u4e00-\u9fff，。！？；：、（）()\[\]{}<>\"']+",
+    re.IGNORECASE,
+)
+
+
+def extract_url(text: str) -> str:
+    """Extract the first usable HTTP URL from pasted text."""
+    text = text.strip()
+    markdown = _MARKDOWN_URL.search(text)
+    if markdown:
+        return markdown.group(1).rstrip(".,;:!?，。；：！？、）)]}》】")
+    match = _URL_CANDIDATE.search(text)
+    if not match:
+        return text
+    return match.group(0).rstrip(".,;:!?，。；！？、）)]}》】")
