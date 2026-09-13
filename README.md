@@ -12,7 +12,7 @@ Windows 10/11 64 位用户可以直接下载单文件版本：
 
 1. 下载 `NovelScraper.exe`。
 2. 双击运行，不需要安装 Python。
-3. 粘贴小说目录链接，例如 `https://www.deqixs.cc/books/99/`。
+3. 粘贴小说目录链接，例如 `https://www.deqixs.cc/books/99/` 或 `https://www.sudugu.cc/674/`。
 4. 选择保存位置，默认是系统“下载/小说下载”。
 5. 如果只下载部分章节，勾选“仅下载指定范围”并填写起始、结束章节；不勾选则下载全部章节。
 6. 点击“开始下载”，完成后会同时保留 `chapters/` 分章 TXT 和书籍根目录下的合并 TXT。
@@ -46,7 +46,7 @@ Windows 10/11 64 位用户可以直接下载单文件版本：
 
 ## 当前适配范围
 
-当前版本优先完整适配得奇小说网 `deqixs.cc`，不是“理论上支持所有网站”的通用爬虫。站点结构变化后，需要更新 `src/novel_scraper/adapters/deqixs.py`。
+当前版本已适配：\n\n- 得奇小说网 `deqixs.cc`\n- 速读谷 `sudugu.cc`\n\n不是“理论上支持所有网站”的通用爬虫。站点结构变化后，需要更新对应适配器：\n\n- `src/novel_scraper/adapters/deqixs.py`\n- `src/novel_scraper/adapters/sudugu.py`\n\n速读谷章节采用 `章节ID_页码.html` 分页，适配器会读取页面中的“当前页 / 总页数”并合并完整章节。
 
 当前已确认的站点结构：
 

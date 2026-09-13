@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import __version__
+from .adapters import is_supported_url
 from .cleaner_gui import CleanerDialog
 from .events import CrawlEvent
 from .gui_worker import CrawlWorker
@@ -84,7 +85,9 @@ class MainWindow(QMainWindow):
 
         title = QLabel(APP_NAME)
         title.setObjectName("title")
-        subtitle = QLabel("粘贴小说目录链接，一键下载为 TXT。支持断点续传和失败重试。")
+        subtitle = QLabel(
+            "粘贴得奇小说网或速读谷的小说链接，一键下载为 TXT。支持断点续传和失败重试。"
+        )
         subtitle.setObjectName("subtitle")
         subtitle.setWordWrap(True)
         root.addWidget(title)
@@ -100,7 +103,9 @@ class MainWindow(QMainWindow):
         url_label.setObjectName("fieldLabel")
         self.url_input = QLineEdit()
         self.url_input.setObjectName("urlInput")
-        self.url_input.setPlaceholderText("例如：https://www.deqixs.cc/books/99/")
+        self.url_input.setPlaceholderText(
+            "例如：https://www.deqixs.cc/books/99/ 或 https://www.sudugu.cc/674/"
+        )
         self.url_input.setClearButtonEnabled(True)
         self.url_input.setMinimumHeight(42)
         form.addWidget(url_label)
@@ -359,8 +364,8 @@ class MainWindow(QMainWindow):
         if not url.startswith(("http://", "https://")):
             QMessageBox.warning(self, "网址不正确", "请粘贴完整的小说目录或章节网址。")
             return
-        if "deqixs.cc" not in url:
-            QMessageBox.warning(self, "暂不支持", "当前桌面版暂只适配得奇小说网 deqixs.cc。")
+        if not is_supported_url(url):
+            QMessageBox.warning(self, "暂不支持", "当前桌面版支持得奇小说网和速读谷。")
             return
 
         start_chapter = None

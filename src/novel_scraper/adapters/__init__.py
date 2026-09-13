@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from .base import SiteAdapter
 from .deqixs import DeqixsAdapter
+from .sudugu import SuduguAdapter
 
-_ADAPTERS: tuple[type[SiteAdapter], ...] = (DeqixsAdapter,)
+_ADAPTERS: tuple[type[SiteAdapter], ...] = (
+    DeqixsAdapter,
+    SuduguAdapter,
+)
 
 
 def adapter_for_url(url: str, http_client: object) -> SiteAdapter:
@@ -16,4 +20,14 @@ def adapter_for_url(url: str, http_client: object) -> SiteAdapter:
     raise UnsupportedSiteError(f"暂不支持该网站：{url}")
 
 
-__all__ = ["DeqixsAdapter", "SiteAdapter", "adapter_for_url"]
+def is_supported_url(url: str) -> bool:
+    return any(adapter_type.matches(url) for adapter_type in _ADAPTERS)
+
+
+__all__ = [
+    "DeqixsAdapter",
+    "SiteAdapter",
+    "SuduguAdapter",
+    "adapter_for_url",
+    "is_supported_url",
+]
