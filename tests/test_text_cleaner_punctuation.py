@@ -64,3 +64,20 @@ def test_cleans_multiple_backslashes_before_quote() -> None:
     source = '「但———-可惜了，注定会成为我们的狗。\\\\"'
     text, _ = clean_paragraph(source, "第1章", 0)
     assert text == "「但——可惜了，注定会成为我们的狗。」"
+
+
+def test_adds_closing_corner_quote_for_finished_dialogue() -> None:
+    source = "「你真当陈幡主不敢再动手？你这辈子都只待在望楼监察下？"
+    text, issues = clean_paragraph(source, "第1章", 0)
+
+    assert text == source + "」"
+    assert any(issue.rule == "unclosed_dialogue_quote" for issue in issues)
+    assert any(issue.confidence == Confidence.HIGH for issue in issues)
+
+
+def test_does_not_close_quote_when_dialogue_may_continue() -> None:
+    source = "「你真当陈幡主不敢再动手，"
+    text, issues = clean_paragraph(source, "第1章", 0)
+
+    assert text == source
+    assert not any(issue.rule == "unclosed_dialogue_quote" for issue in issues)

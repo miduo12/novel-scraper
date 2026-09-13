@@ -242,6 +242,7 @@ def clean_paragraph(
         0.93,
     )
     text = _normalize_straight_quotes(text, chapter, paragraph_index, issues)
+    text = _normalize_unclosed_quotes(text, chapter, paragraph_index, issues)
 
     repeated_expression = re.compile(r"[！!]{3,}|[？?]{3,}")
     for match in repeated_expression.finditer(text):
@@ -275,6 +276,43 @@ def clean_paragraph(
         )
 
     return text, issues
+
+
+def _normalize_unclosed_quotes(
+    text: str,
+    chapter: str,
+    paragraph_index: int,
+    issues: list[TextIssue],
+) -> str:
+    original = text
+    text = _append_unambiguous_closing_quote(text, "「", "」")
+    text = _append_unambiguous_closing_quote(text, "“", "”")
+    if text != original:
+        issues.append(
+            _issue(
+                chapter,
+                paragraph_index,
+                "unclosed_dialogue_quote",
+                "对话以句末标点结束但缺少对应的闭引号",
+                Confidence.HIGH,
+                0.93,
+                original,
+                text,
+            )
+        )
+    return text
+
+
+def _append_unambiguous_closing_quote(text: str, opening: str, closing: str) -> str:
+    if text.count(opening) != text.count(closing) + 1:
+        return text
+    stripped = text.rstrip()
+    if not stripped.endswith(("。", "！", "？", "…")):
+        return text
+    if len([char for char in stripped if "\u4e00" <= char <= "\u9fff"]) < 2:
+        return text
+    trailing = text[len(stripped) :]
+    return stripped + closing + trailing
 
 
 def _replace_straight_quotes(text: str) -> str:
