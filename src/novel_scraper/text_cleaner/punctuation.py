@@ -9,6 +9,7 @@ _CJK_OR_QUOTE = "\u4e00-\u9fff\u201c\u201d\"'"
 _URL_OR_EMAIL = re.compile(r"(?:https?://|www\.|[\w.+-]+@[\w.-]+\.\w+)")
 _RESIDUE_NUMBER = re.compile(r"^[\s\\\"']*(\d{1,4})[\s\\\"']*$")
 _ARTIFACT_ONLY = re.compile(r"^[\s\\\"']+$")
+_EMPTY_DIALOGUE_FRAGMENT = re.compile(r"^[\s「」“”\"'….]+$")
 
 
 def _issue(
@@ -106,6 +107,20 @@ def detect_web_residue(
             original=stripped,
             replacement="",
             action="remove" if confidence == Confidence.HIGH else "report",
+            paragraph=paragraph_index,
+        )
+
+    if _EMPTY_DIALOGUE_FRAGMENT.match(stripped) and ("…" in stripped):
+        return TextIssue(
+            chapter=chapter,
+            category="web_residue",
+            confidence=Confidence.HIGH,
+            confidence_score=0.96,
+            rule="empty_dialogue_fragment",
+            reason="整段只有引号和省略号，没有实际正文内容",
+            original=stripped,
+            replacement="",
+            action="remove",
             paragraph=paragraph_index,
         )
 

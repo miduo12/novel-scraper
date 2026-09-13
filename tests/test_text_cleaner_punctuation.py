@@ -81,3 +81,16 @@ def test_does_not_close_quote_when_dialogue_may_continue() -> None:
 
     assert text == source
     assert not any(issue.rule == "unclosed_dialogue_quote" for issue in issues)
+
+
+def test_empty_dialogue_ellipsis_fragment_is_removed() -> None:
+    issue = detect_web_residue("「……", "第1章", 0, paragraph_count=5)
+    assert issue is not None
+    assert issue.confidence == Confidence.HIGH
+    assert issue.rule == "empty_dialogue_fragment"
+    assert issue.action == "remove"
+
+
+def test_dialogue_with_real_text_is_not_treated_as_empty_fragment() -> None:
+    issue = detect_web_residue("「……他说。」", "第1章", 0, paragraph_count=5)
+    assert issue is None
