@@ -52,6 +52,7 @@ class ReviewDialog(QDialog):
         self.accepted: dict[str, dict[int, bool]] = {}
         self._updating = False
         self._current_chapter = ""
+        self._current_rows: list[tuple[DiffChange | None, TextIssue | None]] = []
         self.issues_by_chapter: dict[str, list[TextIssue]] = {}
         self.setWindowTitle("人工审核自动修改")
         apply_adaptive_size(self, 1250, 850)
@@ -77,7 +78,7 @@ class ReviewDialog(QDialog):
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         self.chapter_tree = QTreeWidget()
-        self.chapter_tree.setHeaderLabels(["章节", "修改数", "标点", "广告", "其他"])
+        self.chapter_tree.setHeaderLabels(["章节", "问题数", "标点", "广告", "其他"])
         self.chapter_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.chapter_tree.setMinimumWidth(360)
         self.chapter_tree.setMouseTracking(True)
@@ -154,17 +155,17 @@ class ReviewDialog(QDialog):
         self.chapter_tree.clear()
         for chapter in self.result.chapters:
             changes = build_diff_changes(chapter)
-            applied_issues = [issue for issue in chapter.issues if issue.applied]
+            issues = list(chapter.issues)
             self.changes_by_chapter[chapter.title] = changes
-            self.issues_by_chapter[chapter.title] = applied_issues
+            self.issues_by_chapter[chapter.title] = issues
             self.accepted[chapter.title] = {change.index: True for change in changes}
             counts: dict[str, int] = {}
-            for issue in applied_issues:
+            for issue in issues:
                 counts[issue.category] = counts.get(issue.category, 0) + 1
             item = QTreeWidgetItem(
                 [
                     chapter.title,
-                    str(len(applied_issues)),
+                    str(len(issues)),
                     str(counts.get("punctuation", 0)),
                     str(counts.get("advertisement", 0)),
                     str(
@@ -177,7 +178,7 @@ class ReviewDialog(QDialog):
                 ]
             )
             item.setData(0, Qt.ItemDataRole.UserRole, chapter.title)
-            item.setToolTip(0, self._chapter_tooltip(chapter.title, changes, applied_issues))
+            item.setToolTip(0, self._chapter_tooltip(chapter.title, changes, issues))
             for column in range(5):
                 item.setToolTip(column, item.toolTip(0))
             self.chapter_tree.addTopLevelItem(item)
@@ -186,7 +187,7 @@ class ReviewDialog(QDialog):
             self.chapter_tree.setCurrentItem(self.chapter_tree.topLevelItem(0))
         else:
             self.change_table.setRowCount(0)
-            self.preview.setHtml("<p>没有可审核的自动修改。</p>")
+            self.preview.setHtml("<p>没有检测到问题。</p>")
 
     def _chapter_changed(self, current: QTreeWidgetItem | None, _previous=None) -> None:
         if current is None:
@@ -197,30 +198,58 @@ class ReviewDialog(QDialog):
     def _populate_change_table(self, chapter_title: str) -> None:
         self._updating = True
         changes = self.changes_by_chapter.get(chapter_title, [])
-        self.change_table.setRowCount(len(changes))
-        for row, change in enumerate(changes):
+        issues = self.issues_by_chapter.get(chapter_title, [])
+        used_changes: set[int] = set()
+        rows: list[tuple[DiffChange | None, TextIssue | None]] = []
+
+        for issue in issues:
+            matched_index = self._find_matching_change(issue, changes, used_changes)
+            if matched_index is None:
+                rows.append((None, issue))
+            else:
+                used_changes.add(matched_index)
+                rows.append((changes[matched_index], issue))
+        for index, change in enumerate(changes):
+            if index not in used_changes:
+                rows.append((change, None))
+
+        self._current_rows = rows
+        self.change_table.setRowCount(len(rows))
+        for row, (change, issue) in enumerate(rows):
             check = QTableWidgetItem()
-            check.setFlags(
-                Qt.ItemFlag.ItemIsEnabled
-                | Qt.ItemFlag.ItemIsSelectable
-                | Qt.ItemFlag.ItemIsUserCheckable
-            )
-            check.setCheckState(
-                Qt.CheckState.Checked
-                if self.accepted[chapter_title].get(change.index, True)
-                else Qt.CheckState.Unchecked
-            )
-            check.setData(Qt.ItemDataRole.UserRole, change.index)
+            if change is not None:
+                check.setFlags(
+                    Qt.ItemFlag.ItemIsEnabled
+                    | Qt.ItemFlag.ItemIsSelectable
+                    | Qt.ItemFlag.ItemIsUserCheckable
+                )
+                check.setCheckState(
+                    Qt.CheckState.Checked
+                    if self.accepted[chapter_title].get(change.index, True)
+                    else Qt.CheckState.Unchecked
+                )
+                check.setData(Qt.ItemDataRole.UserRole, change.index)
+            else:
+                check.setText("仅报告")
+                check.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                check.setData(Qt.ItemDataRole.UserRole, None)
             self.change_table.setItem(row, 0, check)
 
+            category = change.category if change is not None else issue.category
+            confidence = change.confidence if change is not None else issue.confidence.value
+            original = change.original if change is not None else issue.original
+            replacement = change.replacement if change is not None else issue.replacement
+            reason = change.reason if change is not None else issue.reason
+            if replacement == original:
+                replacement = ""
             values = [
-                _CATEGORY_LABELS.get(change.category, change.category),
-                _CONFIDENCE_LABELS.get(change.confidence, change.confidence),
-                _display_change_text(change.original, empty="（原为空）"),
-                _display_change_text(change.replacement, empty="（删除）"),
-                change.reason,
+                _CATEGORY_LABELS.get(category, category),
+                _CONFIDENCE_LABELS.get(confidence, confidence),
+                _display_change_text(original, empty="（原为空）"),
+                _display_change_text(replacement, empty="仅报告"),
+                reason,
             ]
-            tooltip = self._change_tooltip(change)
+            tooltip = self._row_tooltip(change, issue)
             for column, value in enumerate(values, start=1):
                 item = QTableWidgetItem(value)
                 item.setToolTip(tooltip)
@@ -228,10 +257,32 @@ class ReviewDialog(QDialog):
         self._updating = False
         self._refresh_preview(chapter_title)
 
+    @staticmethod
+    def _find_matching_change(
+        issue: TextIssue,
+        changes: list[DiffChange],
+        used_changes: set[int],
+    ) -> int | None:
+        for index, change in enumerate(changes):
+            if index in used_changes:
+                continue
+            if change.rule == issue.rule:
+                return index
+            if change.category != issue.category:
+                continue
+            if issue.original and issue.original in change.original:
+                return index
+            if issue.replacement and issue.replacement in change.replacement:
+                return index
+        return None
+
     def _change_checked(self, item: QTableWidgetItem) -> None:
         if self._updating or item.column() != 0 or not self._current_chapter:
             return
-        change_index = int(item.data(Qt.ItemDataRole.UserRole))
+        change_value = item.data(Qt.ItemDataRole.UserRole)
+        if change_value is None:
+            return
+        change_index = int(change_value)
         self.accepted[self._current_chapter][change_index] = (
             item.checkState() == Qt.CheckState.Checked
         )
@@ -257,6 +308,21 @@ class ReviewDialog(QDialog):
             changes,
             self.accepted.get(chapter_title, {}),
         )
+        if not changes:
+            items = "".join(
+                "<li>{}：{} → {}</li>".format(
+                    escape(_CATEGORY_LABELS.get(issue.category, issue.category)),
+                    escape(_short(issue.original, 160)),
+                    escape(_short(issue.replacement, 160) or "仅报告"),
+                )
+                for issue in self.issues_by_chapter.get(chapter_title, [])
+            )
+            self.preview.setHtml(
+                "<h3>检测到的问题</h3>"
+                "<p>这些问题当前属于仅报告或需要人工确认，没有可直接应用的文本替换。</p>"
+                f"<ul>{items}</ul>"
+            )
+            return
         diff = difflib.HtmlDiff(wrapcolumn=90).make_table(
             chapter.original_text.splitlines(),
             reviewed.splitlines(),
@@ -304,20 +370,14 @@ class ReviewDialog(QDialog):
         QToolTip.showText(QCursor.pos(), item.toolTip(0), self.chapter_tree)
 
     def _show_cell_tooltip(self, row: int, _column: int) -> None:
-        check_item = self.change_table.item(row, 0)
-        if check_item is None:
+        if row < 0 or row >= len(self._current_rows):
             return
-        change_index = int(check_item.data(Qt.ItemDataRole.UserRole))
-        change = next(
-            (
-                item
-                for item in self.changes_by_chapter.get(self._current_chapter, [])
-                if item.index == change_index
-            ),
-            None,
+        change, issue = self._current_rows[row]
+        QToolTip.showText(
+            QCursor.pos(),
+            self._row_tooltip(change, issue),
+            self.change_table,
         )
-        if change is not None:
-            QToolTip.showText(QCursor.pos(), self._change_tooltip(change), self.change_table)
 
     @staticmethod
     def _chapter_tooltip(
@@ -337,7 +397,7 @@ class ReviewDialog(QDialog):
         rows = [
             "<html><body style='min-width:360px; max-width:620px;'>",
             f"<div style='font-size:15px; font-weight:700;'>{escape(title)}</div>",
-            f"<div style='color:#3f5f9f; margin:5px 0;'>自动修改 {len(issues)} 处　{count_text}</div>",
+            f"<div style='color:#3f5f9f; margin:5px 0;'>检测问题 {len(issues)} 处　{count_text}</div>",
             "<hr>",
         ]
         for issue in issues[:8]:
@@ -353,7 +413,7 @@ class ReviewDialog(QDialog):
                 f"<span style='color:#60708c;'>{reason}</span></div>"
             )
         if len(issues) > 8:
-            rows.append(f"<div>……另有 {len(issues) - 8} 处修改</div>")
+            rows.append(f"<div>……另有 {len(issues) - 8} 处问题</div>")
         rows.append("</body></html>")
         return "".join(rows)
 
@@ -373,6 +433,32 @@ class ReviewDialog(QDialog):
             f"<div style='white-space:pre-wrap; color:#187b45; margin-bottom:8px;'>{replacement}</div>"
             f"<div><b>原因</b></div><div style='color:#60708c;'>{escape(change.reason)}</div>"
             f"<div style='color:#7b879b; margin-top:6px;'>规则：{escape(change.rule)}</div>"
+            "</body></html>"
+        )
+
+    def _row_tooltip(
+        self,
+        change: DiffChange | None,
+        issue: TextIssue | None,
+    ) -> str:
+        if change is not None:
+            return self._change_tooltip(change)
+        if issue is None:
+            return ""
+        category = escape(_CATEGORY_LABELS.get(issue.category, issue.category))
+        confidence = escape(_CONFIDENCE_LABELS.get(issue.confidence.value, issue.confidence.value))
+        original = escape(_short(issue.original, 400))
+        replacement = escape(_short(issue.replacement, 400) or "仅报告，不修改")
+        return (
+            "<html><body style='min-width:380px; max-width:680px;'>"
+            f"<div style='font-weight:700;'>{category}　置信度：{confidence}　仅报告</div>"
+            "<hr>"
+            "<div><b>问题/原文</b></div>"
+            f"<div style='white-space:pre-wrap; color:#a33; margin-bottom:8px;'>{original}</div>"
+            "<div><b>建议</b></div>"
+            f"<div style='white-space:pre-wrap; color:#187b45; margin-bottom:8px;'>{replacement}</div>"
+            f"<div><b>原因</b></div><div style='color:#60708c;'>{escape(issue.reason)}</div>"
+            f"<div style='color:#7b879b; margin-top:6px;'>规则：{escape(issue.rule)}</div>"
             "</body></html>"
         )
 

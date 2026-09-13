@@ -12,7 +12,13 @@ from novel_scraper.blacklist_gui import AdBlacklistDialog
 from novel_scraper.cleaner_gui import CleanerDialog
 from novel_scraper.gui import MainWindow
 from novel_scraper.review_gui import ReviewDialog
-from novel_scraper.text_cleaner.models import BookCleanResult, ChapterCleanResult, CleaningMode
+from novel_scraper.text_cleaner.models import (
+    BookCleanResult,
+    ChapterCleanResult,
+    CleaningMode,
+    Confidence,
+    TextIssue,
+)
 
 
 def test_main_window_can_be_created() -> None:
@@ -56,5 +62,39 @@ def test_blacklist_dialog_can_be_created() -> None:
     dialog = AdBlacklistDialog(initial_text="测试广告文本，请访问网站。")
     assert dialog.windowTitle() == "广告黑名单"
     assert "测试广告文本" in dialog.text_input.toPlainText()
+    dialog.close()
+    app.processEvents()
+
+
+def test_review_dialog_shows_report_only_issues(tmp_path) -> None:
+    app = QApplication.instance() or QApplication([])
+    issues = [
+        TextIssue(
+            chapter="第1章",
+            category="punctuation",
+            confidence=Confidence.LOW,
+            confidence_score=0.35,
+            rule="long_repeated_expression",
+            reason="连续多个标点可能是作者表达，保留原文",
+            original="！！！",
+            replacement="！！！",
+            action="report",
+            applied=False,
+            paragraph=0,
+        )
+        for _ in range(16)
+    ]
+    chapter = ChapterCleanResult("第1章", tmp_path / "1.txt", "正文！！！", "正文！！！", issues)
+    result = BookCleanResult(
+        book_dir=tmp_path,
+        mode=CleaningMode.DETECT,
+        chapter_count=1,
+        chapters=[chapter],
+        issue_counts={"punctuation": 16},
+    )
+    dialog = ReviewDialog(result)
+    assert dialog.chapter_tree.topLevelItem(0).text(1) == "16"
+    assert dialog.change_table.rowCount() == 16
+    assert dialog.change_table.item(0, 0).text() == "仅报告"
     dialog.close()
     app.processEvents()
