@@ -70,6 +70,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="detect 仅检测，auto 仅自动修复高置信度问题",
     )
     clean.add_argument("--config-dir", type=Path, default=None, help="可选的自定义规则目录")
+    clean.add_argument(
+        "--save",
+        action="store_true",
+        help="显式保存清洗版章节和合并 TXT；默认只生成报告",
+    )
 
     return parser
 
@@ -119,6 +124,7 @@ def main(argv: list[str] | None = None) -> int:
             result = cleaner.process(
                 args.book_dir,
                 CleaningMode(args.mode),
+                persist_output=args.save,
                 progress_callback=lambda progress: logger.info(
                     "[%d/%d] %s",
                     progress.current,
@@ -130,6 +136,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"报告目录：{result.reports_dir}")
             if result.cleaned_book_path:
                 print(f"清洗版 TXT：{result.cleaned_book_path}")
+            elif result.mode == CleaningMode.AUTO:
+                print("清洗版未保存；添加 --save 可在确认后显式保存")
             return 0
     except KeyboardInterrupt:
         logger.warning("用户中断，已保存现有断点")

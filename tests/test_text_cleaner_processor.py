@@ -47,7 +47,7 @@ def test_auto_mode_outputs_cleaned_files_and_preserves_original(tmp_path: Path) 
     original = (book_dir / "chapters" / "0001_第1章.txt").read_text(encoding="utf-8")
 
     result = BookCleaner(blacklist_store=AdBlacklistStore(tmp_path / "blacklist.json")).process(
-        book_dir, CleaningMode.AUTO
+        book_dir, CleaningMode.AUTO, persist_output=True
     )
 
     assert (book_dir / "chapters" / "0001_第1章.txt").read_text(encoding="utf-8") == original
@@ -66,3 +66,15 @@ def test_auto_mode_outputs_cleaned_files_and_preserves_original(tmp_path: Path) 
     assert "你好，他说。" in normal
     report = json.loads((book_dir / "reports" / "clean_report.json").read_text(encoding="utf-8"))
     assert report["summary"]["applied_count"] >= 6
+
+
+def test_auto_mode_waits_for_explicit_save(tmp_path: Path) -> None:
+    book_dir = make_book(tmp_path)
+    result = BookCleaner(blacklist_store=AdBlacklistStore(tmp_path / "blacklist.json")).process(
+        book_dir, CleaningMode.AUTO
+    )
+
+    assert result.output_dir is None
+    assert result.cleaned_book_path is None
+    assert not (book_dir / "cleaned").exists()
+    assert (book_dir / "reports" / "clean_report.json").exists()

@@ -37,6 +37,7 @@ class BookCleaner:
         mode: CleaningMode = CleaningMode.DETECT,
         *,
         progress_callback: Callable[[CleanProgress], None] | None = None,
+        persist_output: bool = False,
     ) -> BookCleanResult:
         book_dir = book_dir.expanduser().resolve()
         chapter_dir = book_dir / "chapters"
@@ -87,31 +88,36 @@ class BookCleaner:
                     )
                 )
 
-        output_dir = None
-        cleaned_book_path = None
-        if mode == CleaningMode.AUTO:
-            output_dir = book_dir / "cleaned"
-            cleaned_chapter_dir = output_dir / "chapters"
-            cleaned_chapter_dir.mkdir(parents=True, exist_ok=True)
-            for result in chapter_results:
-                safe_atomic_write_text(
-                    cleaned_chapter_dir / result.source_path.name,
-                    result.cleaned_text.strip() + "\n",
-                )
-            cleaned_book_path = _write_cleaned_book(book_dir, output_dir, chapter_results)
-
         result = BookCleanResult(
             book_dir=book_dir,
             mode=mode,
             chapter_count=len(chapter_results),
             chapters=chapter_results,
-            output_dir=output_dir,
             reports_dir=book_dir / "reports",
-            cleaned_book_path=cleaned_book_path,
             issue_counts=dict(issue_counts),
             applied_count=applied_count,
         )
+        if mode == CleaningMode.AUTO and persist_output:
+            self.save_output(result)
         write_reports(result, result.reports_dir or book_dir / "reports")
+        return result
+
+    def save_output(self, result: BookCleanResult) -> BookCleanResult:
+        output_dir = result.book_dir / "cleaned"
+        cleaned_chapter_dir = output_dir / "chapters"
+        cleaned_chapter_dir.mkdir(parents=True, exist_ok=True)
+        for chapter in result.chapters:
+            safe_atomic_write_text(
+                cleaned_chapter_dir / chapter.source_path.name,
+                chapter.cleaned_text.strip() + "\n",
+            )
+        result.output_dir = output_dir
+        result.cleaned_book_path = _write_cleaned_book(
+            result.book_dir,
+            output_dir,
+            result.chapters,
+        )
+        write_reports(result, result.reports_dir or result.book_dir / "reports")
         return result
 
 

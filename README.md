@@ -81,8 +81,8 @@ python -m pip install -e ".[gui]" -i https://pypi.tuna.tsinghua.edu.cn/simple
 1. 选择一个包含 `chapters/` 的小说文件夹。
 2. 选择“仅检测”或“保守自动修复”。
 3. 点击开始，程序会逐章检测广告、标点、乱码和异常繁简体字符。
-4. 自动修复完成后点击“人工审核修改”，查看每章的修改数量和逐条差异。
-5. 可以取消不满意的修改，再点击“应用审核结果”更新 `cleaned/`。
+4. 自动修复完成后，程序会询问“保存清洗版 / 暂不保存 / 先人工审核”。
+5. 只有选择保存，或在人工审核窗口点击“应用审核结果”后，才会写入 `cleaned/`。
 
 两种模式：
 
@@ -95,7 +95,7 @@ python -m pip install -e ".[gui]" -i https://pypi.tuna.tsinghua.edu.cn/simple
 小说下载/
 └── 玄鉴仙族/
     ├── chapters/                 # 原始章节，始终保留
-    ├── cleaned/                  # 仅自动修复模式生成
+    ├── cleaned/                  # 用户确认保存后才生成
     │   ├── chapters/
     │   └── 玄鉴仙族_清洗版.txt
     └── reports/
@@ -109,9 +109,12 @@ python -m pip install -e ".[gui]" -i https://pypi.tuna.tsinghua.edu.cn/simple
 命令行用法：
 
 ```powershell
-..venvScriptspython.exe -m novel_scraper clean "下载目录玄鉴仙族" --mode detect
-..venvScriptspython.exe -m novel_scraper clean "下载目录玄鉴仙族" --mode auto
+.\.venv\Scripts\python.exe -m novel_scraper clean "下载目录\玄鉴仙族" --mode detect
+.\.venv\Scripts\python.exe -m novel_scraper clean "下载目录\玄鉴仙族" --mode auto
+.\.venv\Scripts\python.exe -m novel_scraper clean "下载目录\玄鉴仙族" --mode auto --save
 ```
+
+命令行默认只生成报告，必须显式添加 `--save` 才会保存清洗版。
 
 清洗规则默认位于 `src/novel_scraper/resources/config/`：
 
@@ -122,7 +125,7 @@ python -m pip install -e ".[gui]" -i https://pypi.tuna.tsinghua.edu.cn/simple
 可以通过 `--config-dir 自定义目录` 覆盖默认规则：
 
 ```powershell
-..venvScriptspython.exe -m novel_scraper clean "下载目录玄鉴仙族" --mode auto --config-dir .config
+.\.venv\Scripts\python.exe -m novel_scraper clean "下载目录\玄鉴仙族" --mode auto --save --config-dir .\config
 ```
 
 保守原则：

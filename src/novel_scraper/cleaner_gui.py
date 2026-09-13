@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from .blacklist_gui import AdBlacklistDialog
-from .cleaner_worker import CleanWorker
+from .cleaner_worker import CleanSaveWorker, CleanWorker
 from .review_gui import ReviewDialog
 from .text_cleaner import BookCleanResult, CleaningMode, CleanProgress
 from .ui_utils import apply_adaptive_size
@@ -30,6 +30,7 @@ class CleanerDialog(QDialog):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.worker: CleanWorker | None = None
+        self.save_worker: CleanSaveWorker | None = None
         self.last_result: BookCleanResult | None = None
         self.setWindowTitle("小说内容检测与保守清洗")
         apply_adaptive_size(self, 980, 720)
@@ -185,7 +186,60 @@ class CleanerDialog(QDialog):
         self._append_log(f"报告目录：{result.reports_dir}")
         if result.cleaned_book_path:
             self._append_log(f"清洗版 TXT：{result.cleaned_book_path}")
-        QMessageBox.information(self, "处理完成", "\n".join(summary))
+        if result.mode == CleaningMode.AUTO and result.applied_count > 0:
+            self._ask_to_save(result, summary)
+        else:
+            QMessageBox.information(self, "处理完成", "\n".join(summary))
+
+    def _ask_to_save(self, result: BookCleanResult, summary: list[str]) -> None:
+        box = QMessageBox(self)
+        box.setWindowTitle("是否保存清洗版")
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setText("清洗已在内存中完成，是否现在保存清洗版？")
+        box.setInformativeText(
+            "选择“暂不保存”只保留报告；选择“先人工审核”后，"
+            "只有点击“应用审核结果”才会写入 cleaned/。"
+        )
+        save_button = box.addButton("保存清洗版", QMessageBox.ButtonRole.AcceptRole)
+        no_button = box.addButton("暂不保存", QMessageBox.ButtonRole.RejectRole)
+        review_button = box.addButton("先人工审核", QMessageBox.ButtonRole.ActionRole)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is save_button:
+            self._save_result(result)
+        elif clicked is review_button:
+            self._append_log("先进行人工审核，未保存清洗版")
+            self._open_review()
+        elif clicked is no_button:
+            self._append_log("已选择暂不保存清洗版，仅保留检测报告")
+            QMessageBox.information(self, "处理完成", "\n".join(summary))
+
+    def _save_result(self, result: BookCleanResult) -> None:
+        self.start_button.setEnabled(False)
+        self.review_button.setEnabled(False)
+        self.status_label.setText("正在保存清洗版…")
+        self.save_worker = CleanSaveWorker(result, self)
+        self.save_worker.succeeded.connect(self._handle_save_success)
+        self.save_worker.failed.connect(self._handle_save_failure)
+        self.save_worker.start()
+
+    def _handle_save_success(self, result: BookCleanResult) -> None:
+        self.last_result = result
+        self.save_worker = None
+        self.start_button.setEnabled(True)
+        self.review_button.setEnabled(result.total_issues > 0)
+        self.open_reports_button.setEnabled(True)
+        self.status_label.setText(f"清洗版已保存：{result.cleaned_book_path}")
+        self._append_log(f"清洗版 TXT：{result.cleaned_book_path}")
+        QMessageBox.information(self, "保存完成", f"清洗版已保存到：\n{result.cleaned_book_path}")
+
+    def _handle_save_failure(self, message: str) -> None:
+        self.save_worker = None
+        self.start_button.setEnabled(True)
+        self.review_button.setEnabled(self.last_result is not None)
+        self.status_label.setText("保存清洗版失败")
+        self._append_log(f"保存清洗版失败：{message}")
+        QMessageBox.critical(self, "保存失败", message)
 
     def _handle_failure(self, message: str) -> None:
         self.worker = None
@@ -216,6 +270,10 @@ class CleanerDialog(QDialog):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.last_result.reports_dir)))
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if self.save_worker is not None and self.save_worker.isRunning():
+            QMessageBox.information(self, "正在保存", "清洗版正在保存，请等待完成后再关闭。")
+            event.ignore()
+            return
         if self.worker is not None and self.worker.isRunning():
             QMessageBox.information(self, "正在处理", "检测仍在运行，请等待完成后再关闭。")
             event.ignore()
