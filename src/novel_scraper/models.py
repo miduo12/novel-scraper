@@ -35,5 +35,6 @@ class CrawlResult:
     chapters_path: Path
     completed: int
     skipped: int
-    failed: int
+    duplicates: int = 0
+    failed: int = 0
     cancelled: bool = False

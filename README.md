@@ -144,6 +144,22 @@ python -m pip install -e ".[gui]" -i https://pypi.tuna.tsinghua.edu.cn/simple
 - 点击“应用审核结果”后重新生成 `cleaned/`，原始 `chapters/` 不变。
 - 审核决定保存在 `reports/review_decisions.json`。
 
+## 重复章节检测与倒序下载
+
+下载默认开启跨章节正文去重。程序会计算每个章节正文的 SHA-256；正文完全相同的章节只保存第一次出现的内容，并在 `duplicate_chapters.txt` 中记录后续重复 URL、首次出现章节和正文哈希。
+
+如果小说目录在后期出现大量重复章节，可以勾选“从最新章节向前下载”。程序会先抓最新章节，再向前抓取；合并 TXT 仍按小说目录顺序输出，不会倒序排列。
+
+命令行参数：
+
+- 默认：启用正文哈希去重
+- `--no-deduplicate`：关闭正文去重
+- `--reverse`：从选中范围的最后一章向前下载
+
+```powershell
+python -m novel_scraper crawl "https://www.deqixs.cc/books/51/" --reverse
+```
+
 ## 广告黑名单
 
 如果检测后仍然看到未清理的广告，可以把它加入用户广告黑名单。黑名单会持久化保存，不会写入 Git 仓库。

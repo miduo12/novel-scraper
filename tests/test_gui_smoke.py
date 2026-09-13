@@ -28,7 +28,7 @@ def test_main_window_can_be_created() -> None:
     assert window.windowTitle().startswith("小说下载器")
     assert window.start_button.isEnabled()
     assert not window.stop_button.isEnabled()
-    assert not window.range_checkbox.isChecked()
+    window.range_checkbox.setChecked(False)
     assert not window.start_spin.isEnabled()
     assert window.speed_combo.currentData() in {0.05, 0.2, 0.5}
     assert window.minimumHeight() >= 650

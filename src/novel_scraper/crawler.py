@@ -11,6 +11,7 @@ from .exceptions import CrawlCancelled
 from .http import HttpClient
 from .models import Book, Chapter, CrawlResult
 from .storage import BookStorage
+from .utils import content_hash
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,8 @@ class CrawlOptions:
     start_chapter: int | None = None
     end_chapter: int | None = None
     force: bool = False
+    deduplicate: bool = True
+    reverse: bool = False
 
 
 class NovelCrawler:
@@ -170,14 +173,34 @@ class NovelCrawler:
         chapters = self._select_chapters(book)
         if self.options.limit is not None:
             chapters = chapters[: max(0, self.options.limit)]
+        if self.options.reverse:
+            chapters = tuple(reversed(chapters))
 
         storage = BookStorage(self.options.output_dir, book)
         state = storage.load_state()
         completed = 0
         skipped = 0
+        duplicates = 0
         failed = 0
         cancelled = False
         total = len(chapters)
+        hash_index: dict[str, tuple[str, str]] = {}
+        if self.options.deduplicate:
+            for existing_chapter in book.chapters:
+                existing_path = storage.chapter_path(existing_chapter)
+                if existing_path.exists():
+                    digest = content_hash(existing_path.read_text(encoding="utf-8"))
+                    hash_index.setdefault(
+                        digest,
+                        (existing_chapter.title, existing_chapter.url),
+                    )
+            for duplicate_url, duplicate in state.duplicates.items():
+                digest = duplicate.get("hash", "")
+                if digest:
+                    hash_index.setdefault(
+                        digest,
+                        (duplicate.get("first_title", "未知章节"), duplicate_url),
+                    )
 
         logger.info(
             "《%s》 作者：%s，共 %d 章，本次处理 %d 章",
@@ -200,6 +223,19 @@ class NovelCrawler:
             if self._cancelled():
                 cancelled = True
                 break
+            if self.options.deduplicate and chapter.url in state.duplicates:
+                duplicates += 1
+                logger.info("[%d/%d] %s，正文重复，跳过", position, total, chapter.title)
+                self._emit(
+                    "chapter_duplicate",
+                    "与已下载章节正文重复，跳过",
+                    book=book,
+                    chapter=chapter,
+                    completed=position,
+                    total=total,
+                    failed=failed,
+                )
+                continue
             path = storage.chapter_path(chapter)
             if not self.options.force and chapter.url in state.completed and path.exists():
                 skipped += 1
@@ -243,7 +279,35 @@ class NovelCrawler:
                     ),
                 )
                 content = "\n\n".join(page.content for page in pages)
+                digest = content_hash(content)
+                if self.options.deduplicate and digest in hash_index:
+                    first_title, first_url = hash_index[digest]
+                    duplicates += 1
+                    storage.mark_duplicate(
+                        state,
+                        chapter,
+                        digest,
+                        first_title,
+                        first_url,
+                    )
+                    logger.info(
+                        "    正文与 %s 重复，跳过：%s",
+                        first_title,
+                        first_url,
+                    )
+                    self._emit(
+                        "chapter_duplicate",
+                        f"正文与《{first_title}》重复，跳过",
+                        book=book,
+                        chapter=chapter,
+                        completed=position,
+                        total=total,
+                        failed=failed,
+                    )
+                    continue
                 storage.save_chapter(chapter, content)
+                if self.options.deduplicate:
+                    hash_index[digest] = (chapter.title, chapter.url)
                 storage.mark_completed(state, chapter)
                 completed += 1
                 logger.info("    完成，共 %d 页", len(pages))
@@ -280,16 +344,20 @@ class NovelCrawler:
             cancelled = True
 
         failure_path = storage.write_failures(state)
+        duplicate_path = storage.write_duplicates(state)
         output_path = storage.build_combined_txt()
         logger.info(
-            "运行结束：新增 %d，跳过 %d，失败 %d；TXT：%s",
+            "运行结束：新增 %d，跳过 %d，重复 %d，失败 %d；TXT：%s",
             completed,
             skipped,
+            duplicates,
             failed,
             output_path,
         )
         if failure_path:
             logger.warning("失败章节已记录：%s", failure_path)
+        if duplicate_path:
+            logger.warning("重复章节已记录：%s", duplicate_path)
         if cancelled:
             message = "当前章节已完整保存，已在下一章开始前停止"
             self._emit(
@@ -304,7 +372,7 @@ class NovelCrawler:
         else:
             self._emit(
                 "finished",
-                f"下载完成：新增 {completed}，跳过 {skipped}，失败 {failed}",
+                f"下载完成：新增 {completed}，跳过 {skipped}，重复 {duplicates}，失败 {failed}",
                 book=book,
                 completed=total,
                 total=total,
@@ -318,6 +386,7 @@ class NovelCrawler:
             chapters_path=storage.chapters_dir,
             completed=completed,
             skipped=skipped,
+            duplicates=duplicates,
             failed=failed,
             cancelled=cancelled,
         )

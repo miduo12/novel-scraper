@@ -15,6 +15,7 @@ STATE_VERSION = 1
 class StoredState:
     completed: set[str] = field(default_factory=set)
     failures: dict[str, dict[str, str]] = field(default_factory=dict)
+    duplicates: dict[str, dict[str, str]] = field(default_factory=dict)
 
     @classmethod
     def from_payload(cls, payload: object) -> StoredState:
@@ -22,9 +23,11 @@ class StoredState:
             return cls()
         completed = payload.get("completed", [])
         failures = payload.get("failures", {})
+        duplicates = payload.get("duplicates", {})
         return cls(
             completed={str(item) for item in completed} if isinstance(completed, list) else set(),
             failures=failures if isinstance(failures, dict) else {},
+            duplicates=duplicates if isinstance(duplicates, dict) else {},
         )
 
     def to_payload(self) -> dict[str, object]:
@@ -33,6 +36,7 @@ class StoredState:
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "completed": sorted(self.completed),
             "failures": self.failures,
+            "duplicates": self.duplicates,
         }
 
 
@@ -43,6 +47,7 @@ class BookStorage:
         self.chapters_dir = self.root / "chapters"
         self.state_path = self.root / "state.json"
         self.failures_path = self.root / "failed_chapters.txt"
+        self.duplicates_path = self.root / "duplicate_chapters.txt"
         self.combined_path = self.root / f"{safe_filename(book.title, fallback='novel')}.txt"
         self.chapters_dir.mkdir(parents=True, exist_ok=True)
 
@@ -78,6 +83,45 @@ class BookStorage:
         state.completed.discard(chapter.url)
         state.failures[chapter.url] = {"title": chapter.title, "reason": reason}
         self.save_state(state)
+
+    def mark_duplicate(
+        self,
+        state: StoredState,
+        chapter: Chapter,
+        digest: str,
+        first_title: str,
+        first_url: str,
+    ) -> None:
+        state.duplicates[chapter.url] = {
+            "title": chapter.title,
+            "hash": digest,
+            "first_title": first_title,
+            "first_url": first_url,
+        }
+        self.save_state(state)
+
+    def write_duplicates(self, state: StoredState) -> Path | None:
+        if not state.duplicates:
+            if self.duplicates_path.exists():
+                self.duplicates_path.unlink()
+            return None
+        blocks = ["重复章节记录", ""]
+        for chapter in self.book.chapters:
+            duplicate = state.duplicates.get(chapter.url)
+            if not duplicate:
+                continue
+            blocks.extend(
+                [
+                    chapter.title,
+                    chapter.url,
+                    f"首次出现：{duplicate.get('first_title', '未知')}",
+                    f"首次地址：{duplicate.get('first_url', '')}",
+                    f"正文哈希：{duplicate.get('hash', '')}",
+                    "",
+                ]
+            )
+        atomic_write_text(self.duplicates_path, "\n".join(blocks).rstrip() + "\n")
+        return self.duplicates_path
 
     def write_failures(self, state: StoredState) -> Path | None:
         if not state.failures:

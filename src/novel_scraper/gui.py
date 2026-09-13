@@ -167,6 +167,17 @@ class MainWindow(QMainWindow):
         range_row.addWidget(self.to_end_checkbox)
         form.addWidget(range_label)
         form.addLayout(range_row)
+        behavior_row = QHBoxLayout()
+        behavior_row.setSpacing(14)
+        self.deduplicate_checkbox = QCheckBox("自动跳过正文重复章节")
+        self.deduplicate_checkbox.setChecked(True)
+        self.deduplicate_checkbox.setToolTip("按正文哈希去重，同一内容只保留一次")
+        self.reverse_checkbox = QCheckBox("从最新章节向前下载")
+        self.reverse_checkbox.setToolTip("先抓最新章节；合并 TXT 仍按原文目录顺序生成")
+        behavior_row.addWidget(self.deduplicate_checkbox)
+        behavior_row.addWidget(self.reverse_checkbox)
+        behavior_row.addStretch(1)
+        form.addLayout(behavior_row)
         self.range_checkbox.toggled.connect(self._toggle_chapter_range)
         self.to_end_checkbox.toggled.connect(self._toggle_chapter_range)
         self._toggle_chapter_range(False)
@@ -319,6 +330,12 @@ class MainWindow(QMainWindow):
         range_enabled = str(self.settings.value("range_enabled", "false")).lower() == "true"
         to_end = str(self.settings.value("to_end", "true")).lower() == "true"
         self.to_end_checkbox.setChecked(to_end)
+        self.deduplicate_checkbox.setChecked(
+            str(self.settings.value("deduplicate", "true")).lower() == "true"
+        )
+        self.reverse_checkbox.setChecked(
+            str(self.settings.value("reverse", "false")).lower() == "true"
+        )
         self.range_checkbox.setChecked(range_enabled)
         self._toggle_chapter_range(range_enabled)
 
@@ -336,6 +353,8 @@ class MainWindow(QMainWindow):
         self.settings.setValue("start_chapter", self.start_spin.value())
         self.settings.setValue("end_chapter", self.end_spin.value())
         self.settings.setValue("to_end", self.to_end_checkbox.isChecked())
+        self.settings.setValue("deduplicate", self.deduplicate_checkbox.isChecked())
+        self.settings.setValue("reverse", self.reverse_checkbox.isChecked())
 
     def _toggle_chapter_range(self, enabled: bool) -> None:
         self.to_end_checkbox.setEnabled(enabled)
@@ -410,6 +429,8 @@ class MainWindow(QMainWindow):
         self.range_checkbox.setEnabled(False)
         self.start_spin.setEnabled(False)
         self.end_spin.setEnabled(False)
+        self.deduplicate_checkbox.setEnabled(False)
+        self.reverse_checkbox.setEnabled(False)
         self.book_label.setText("正在解析小说目录…")
         self.chapter_label.setText("首次使用请保持网络连接")
         self.progress_label.setText("0 / 0")
@@ -425,6 +446,8 @@ class MainWindow(QMainWindow):
             retries=3,
             start_chapter=start_chapter,
             end_chapter=end_chapter,
+            deduplicate=self.deduplicate_checkbox.isChecked(),
+            reverse=self.reverse_checkbox.isChecked(),
             parent=self,
         )
         self.worker.event_received.connect(self._handle_event)
@@ -517,6 +540,8 @@ class MainWindow(QMainWindow):
         self.output_input.setEnabled(True)
         self.speed_combo.setEnabled(True)
         self.range_checkbox.setEnabled(True)
+        self.deduplicate_checkbox.setEnabled(True)
+        self.reverse_checkbox.setEnabled(True)
         self._toggle_chapter_range(self.range_checkbox.isChecked())
         self.open_button.setEnabled(self.last_output_path is not None)
         self.worker = None

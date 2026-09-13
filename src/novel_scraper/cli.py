@@ -60,6 +60,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="抓到标题中的第 N 章结束（包含），默认最后一段章号",
     )
     crawl.add_argument("--force", action="store_true", help="忽略断点，重新抓取指定章节")
+    crawl.add_argument(
+        "--no-deduplicate", action="store_true", help="关闭正文哈希去重，默认开启去重"
+    )
+    crawl.add_argument("--reverse", action="store_true", help="从选中范围的最后一章向前下载")
 
     clean = subparsers.add_parser("clean", help="检测并保守清洗已经下载的小说")
     clean.add_argument("book_dir", type=Path, help="包含 chapters/ 的小说文件夹")
@@ -161,6 +165,8 @@ def _options(args: argparse.Namespace) -> CrawlOptions:
         start_chapter=getattr(args, "start_chapter", None),
         end_chapter=getattr(args, "end_chapter", None),
         force=getattr(args, "force", False),
+        deduplicate=not getattr(args, "no_deduplicate", False),
+        reverse=getattr(args, "reverse", False),
     )
 
 
