@@ -1,10 +1,7 @@
 from pathlib import Path
 from threading import Event
 
-import pytest
-
 from novel_scraper.crawler import CrawlOptions, NovelCrawler
-from novel_scraper.exceptions import CrawlCancelled
 from novel_scraper.models import Book, Chapter, FetchedPage
 
 
@@ -23,8 +20,12 @@ class FakeAdapter:
         self,
         chapter_count: int = 1,
         chapter_numbers: tuple[int, ...] | None = None,
+        cancel_event: Event | None = None,
+        cancel_after_fetch: bool = False,
     ) -> None:
         self.http = FakeHttp()
+        self.cancel_event = cancel_event
+        self.cancel_after_fetch = cancel_after_fetch
         numbers = chapter_numbers or tuple(range(1, chapter_count + 1))
         self.chapters = tuple(
             Chapter(
@@ -51,9 +52,10 @@ class FakeAdapter:
     def fetch_chapter_pages(self, chapter, max_pages, *, on_page=None, should_cancel=None):
         if on_page:
             on_page(1)
-        if should_cancel and should_cancel():
-            raise CrawlCancelled("用户已停止抓取")
-        return (FetchedPage(number=1, url=chapter.url, content=f"{chapter.title}正文"),)
+        result = (FetchedPage(number=1, url=chapter.url, content=f"{chapter.title}正文"),)
+        if self.cancel_event is not None and self.cancel_after_fetch:
+            self.cancel_event.set()
+        return result
 
 
 def make_crawler(
@@ -64,9 +66,15 @@ def make_crawler(
     options: CrawlOptions | None = None,
     chapter_count: int = 1,
     chapter_numbers: tuple[int, ...] | None = None,
+    cancel_after_fetch: bool = False,
 ) -> NovelCrawler:
     return NovelCrawler(
-        FakeAdapter(chapter_count, chapter_numbers),
+        FakeAdapter(
+            chapter_count,
+            chapter_numbers,
+            cancel_event=cancel_event,
+            cancel_after_fetch=cancel_after_fetch,
+        ),
         options or CrawlOptions(output_dir=tmp_path),
         progress_callback=callback,
         cancel_event=cancel_event,
@@ -114,13 +122,35 @@ def test_crawler_downloads_only_selected_chapter_range(tmp_path: Path) -> None:
     assert "第9章正文" not in combined
 
 
-def test_crawler_can_be_cancelled(tmp_path: Path) -> None:
+def test_crawler_can_be_cancelled_before_start(tmp_path: Path) -> None:
     events = []
     cancel_event = Event()
     cancel_event.set()
     crawler = make_crawler(tmp_path, events.append, cancel_event)
 
-    with pytest.raises(CrawlCancelled):
-        crawler.crawl_book("https://example.com/book/1.html")
+    result = crawler.crawl_book("https://example.com/book/1.html")
 
+    assert result.cancelled is True
+    assert result.completed == 0
     assert events[-1].kind == "cancelled"
+
+
+def test_crawler_finishes_current_chapter_before_stopping(tmp_path: Path) -> None:
+    events = []
+    cancel_event = Event()
+    crawler = make_crawler(
+        tmp_path,
+        events.append,
+        cancel_event,
+        chapter_count=3,
+        cancel_after_fetch=True,
+    )
+
+    result = crawler.crawl_book("https://example.com/book/1.html")
+
+    assert result.cancelled is True
+    assert result.completed == 1
+    assert [event.chapter_title for event in events if event.kind == "chapter_started"] == ["第1章"]
+    assert events[-1].kind == "cancelled"
+    assert result.output_path.exists()
+    assert "第1章正文" in result.output_path.read_text(encoding="utf-8")

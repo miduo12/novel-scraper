@@ -36,3 +36,4 @@ class CrawlResult:
     completed: int
     skipped: int
     failed: int
+    cancelled: bool = False

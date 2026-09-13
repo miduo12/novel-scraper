@@ -111,12 +111,6 @@ class NovelCrawler:
     def _cancelled(self) -> bool:
         return self.cancel_event is not None and self.cancel_event.is_set()
 
-    def _raise_if_cancelled(self, book: Book | None = None, total: int = 0) -> None:
-        if not self._cancelled():
-            return
-        self._emit("cancelled", "已停止下载，当前进度已保存", book=book, total=total)
-        raise CrawlCancelled("用户已停止抓取")
-
     def fetch_book(self, url: str) -> Book:
         book_url = self.adapter.normalize_book_url(url)
         html = self.http.get_text(book_url)
@@ -182,6 +176,7 @@ class NovelCrawler:
         completed = 0
         skipped = 0
         failed = 0
+        cancelled = False
         total = len(chapters)
 
         logger.info(
@@ -202,7 +197,9 @@ class NovelCrawler:
         )
 
         for position, chapter in enumerate(chapters, start=1):
-            self._raise_if_cancelled(book, total)
+            if self._cancelled():
+                cancelled = True
+                break
             path = storage.chapter_path(chapter)
             if not self.options.force and chapter.url in state.completed and path.exists():
                 skipped += 1
@@ -244,7 +241,6 @@ class NovelCrawler:
                             page=page_number,
                         )
                     ),
-                    should_cancel=self._cancelled,
                 )
                 content = "\n\n".join(page.content for page in pages)
                 storage.save_chapter(chapter, content)
@@ -280,7 +276,9 @@ class NovelCrawler:
                     failed=failed,
                 )
 
-        self._raise_if_cancelled(book, total)
+        if self._cancelled():
+            cancelled = True
+
         failure_path = storage.write_failures(state)
         output_path = storage.build_combined_txt()
         logger.info(
@@ -292,15 +290,27 @@ class NovelCrawler:
         )
         if failure_path:
             logger.warning("失败章节已记录：%s", failure_path)
-        self._emit(
-            "finished",
-            f"下载完成：新增 {completed}，跳过 {skipped}，失败 {failed}",
-            book=book,
-            completed=total,
-            total=total,
-            failed=failed,
-            output_path=output_path,
-        )
+        if cancelled:
+            message = "当前章节已完整保存，已在下一章开始前停止"
+            self._emit(
+                "cancelled",
+                message,
+                book=book,
+                completed=sum(1 for chapter in chapters if storage.chapter_path(chapter).exists()),
+                total=total,
+                failed=failed,
+                output_path=output_path,
+            )
+        else:
+            self._emit(
+                "finished",
+                f"下载完成：新增 {completed}，跳过 {skipped}，失败 {failed}",
+                book=book,
+                completed=total,
+                total=total,
+                failed=failed,
+                output_path=output_path,
+            )
 
         return CrawlResult(
             book=book,
@@ -309,6 +319,7 @@ class NovelCrawler:
             completed=completed,
             skipped=skipped,
             failed=failed,
+            cancelled=cancelled,
         )
 
     def crawl_single_chapter(self, url: str) -> tuple[Chapter, Path]:
@@ -346,7 +357,6 @@ class NovelCrawler:
                 total=1,
                 page=page_number,
             ),
-            should_cancel=self._cancelled,
         )
         content = "\n\n".join(page.content for page in pages)
         storage = BookStorage(self.options.output_dir, book)

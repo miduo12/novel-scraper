@@ -15,7 +15,7 @@ class CrawlWorker(QThread):
     event_received = Signal(object)
     succeeded = Signal(object)
     failed = Signal(str)
-    stopped = Signal()
+    stopped = Signal(object)
 
     def __init__(
         self,
@@ -58,7 +58,10 @@ class CrawlWorker(QThread):
                 cancel_event=self._cancel_event,
             ) as crawler:
                 result = crawler.crawl_book(self.url)
-            self.succeeded.emit(result)
+            if self._cancel_event.is_set():
+                self.stopped.emit(result)
+            else:
+                self.succeeded.emit(result)
         except CrawlCancelled:
             self.stopped.emit()
         except Exception as exc:  # noqa: BLE001

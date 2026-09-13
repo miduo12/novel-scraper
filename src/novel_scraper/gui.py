@@ -421,8 +421,8 @@ class MainWindow(QMainWindow):
     def _stop_download(self) -> None:
         if self.worker is not None and self.worker.isRunning():
             self.stop_button.setEnabled(False)
-            self.chapter_label.setText("正在停止，完成当前请求后会退出…")
-            self._append_log("正在停止下载")
+            self.chapter_label.setText("将在当前章节完整下载后停止…")
+            self._append_log("已请求停止：将完成当前章节剩余分页")
             self.worker.request_cancel()
 
     def _handle_event(self, event: CrawlEvent) -> None:
@@ -454,6 +454,12 @@ class MainWindow(QMainWindow):
         elif event.kind == "chapter_failed":
             self.chapter_label.setText(f"失败，继续下一章：{event.chapter_title}")
             self._append_log(f"    失败：{event.message}")
+        elif event.kind == "cancelled":
+            self.chapter_label.setText(event.message)
+            self._append_log(event.message)
+            if event.output_path is not None:
+                self.last_combined_path = Path(event.output_path)
+                self.last_output_path = self.last_combined_path.parent
         elif event.kind == "finished":
             self._append_log(event.message)
 
@@ -479,8 +485,11 @@ class MainWindow(QMainWindow):
         if not self._closing:
             QMessageBox.critical(self, "下载失败", message)
 
-    def _handle_stopped(self) -> None:
-        self.chapter_label.setText("已停止，已完成章节会保留，下次可继续")
+    def _handle_stopped(self, result=None) -> None:
+        if result is not None:
+            self.last_combined_path = Path(result.output_path)
+            self.last_output_path = self.last_combined_path.parent
+        self.chapter_label.setText("已停止，当前章节已完整保存，下次可继续")
         self._append_log("任务已停止，进度已保留")
         self._finish_ui()
         if self._closing:
