@@ -24,8 +24,10 @@ def main() -> None:
     rounded_rectangle(draw, (76, 92, 180, 104), 6, "#DDE7FB")
     rounded_rectangle(draw, (76, 120, 152, 132), 6, "#DDE7FB")
 
-    draw.polygon([(128, 146), (94, 112), (111, 112), (111, 94), (145, 94),
-                  (145, 112), (162, 112)], fill="#F4B740")
+    draw.polygon(
+        [(128, 146), (94, 112), (111, 112), (111, 94), (145, 94), (145, 112), (162, 112)],
+        fill="#F4B740",
+    )
     draw.rounded_rectangle((111, 142, 145, 154), 5, fill="#F4B740")
     rounded_rectangle(draw, (64, 183, 192, 220), 14, "#173E93")
     draw.text((90, 189), "TXT", fill="#FFFFFF")
@@ -33,7 +35,9 @@ def main() -> None:
     png_path = output_dir / "app.png"
     ico_path = output_dir / "app.ico"
     image.save(png_path)
-    image.save(ico_path, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+    image.save(
+        ico_path, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
+    )
     print(f"generated {png_path}")
     print(f"generated {ico_path}")
 
