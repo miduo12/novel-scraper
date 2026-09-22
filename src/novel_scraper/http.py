@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import random
+import threading
 import time
 from dataclasses import dataclass, field
 from email.utils import parsedate_to_datetime
@@ -15,9 +17,31 @@ logger = logging.getLogger(__name__)
 RETRYABLE_STATUS_CODES = {408, 425, 429, 500, 502, 503, 504}
 
 
+class RequestPacer:
+    """Share a randomized minimum request interval across worker threads."""
+
+    def __init__(self, delay: float, jitter: float = 0.0) -> None:
+        self.delay = max(0.0, delay)
+        self.jitter = max(0.0, jitter)
+        self._lock = threading.Lock()
+        self._last_request_at: float | None = None
+
+    def wait(self) -> None:
+        if self.delay <= 0 and self.jitter <= 0:
+            return
+        with self._lock:
+            interval = self.delay + random.uniform(0.0, self.jitter)
+            if self._last_request_at is not None:
+                remaining = interval - (time.monotonic() - self._last_request_at)
+                if remaining > 0:
+                    time.sleep(remaining)
+            self._last_request_at = time.monotonic()
+
+
 @dataclass(slots=True)
 class HttpClient:
     delay: float = 0.2
+    jitter: float = 0.2
     timeout: float = 20.0
     retries: int = 3
     backoff_factor: float = 1.5
@@ -26,11 +50,13 @@ class HttpClient:
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/140.0.0.0 Safari/537.36"
     )
+    pacer: RequestPacer | None = None
     session: requests.Session = field(default_factory=requests.Session)
     _last_request_at: float | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.delay = max(0.0, float(self.delay))
+        self.jitter = max(0.0, float(self.jitter))
         self.timeout = max(1.0, float(self.timeout))
         self.retries = max(0, int(self.retries))
         self.backoff_factor = max(1.0, float(self.backoff_factor))
@@ -52,9 +78,13 @@ class HttpClient:
         self.close()
 
     def _respect_delay(self) -> None:
-        if self._last_request_at is None or self.delay <= 0:
+        if self.pacer is not None:
+            self.pacer.wait()
             return
-        remaining = self.delay - (time.monotonic() - self._last_request_at)
+        if self._last_request_at is None or (self.delay <= 0 and self.jitter <= 0):
+            return
+        interval = self.delay + random.uniform(0.0, self.jitter)
+        remaining = interval - (time.monotonic() - self._last_request_at)
         if remaining > 0:
             time.sleep(remaining)
 

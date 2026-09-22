@@ -31,6 +31,7 @@ def test_main_window_can_be_created() -> None:
     window.range_checkbox.setChecked(False)
     assert not window.start_spin.isEnabled()
     assert window.speed_combo.currentData() in {0.05, 0.2, 0.5}
+    assert window.workers_combo.currentData() in {1, 3, 5, 8, 10}
     assert window.minimumHeight() >= 650
     assert isinstance(window.centralWidget(), QScrollArea)
     window.range_checkbox.setChecked(True)

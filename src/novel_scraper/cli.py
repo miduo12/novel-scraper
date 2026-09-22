@@ -65,6 +65,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-deduplicate", action="store_true", help="关闭正文哈希去重，默认开启去重"
     )
     crawl.add_argument("--reverse", action="store_true", help="从选中范围的最后一章向前下载")
+    crawl.add_argument("--workers", type=int, default=5, help="并发章节线程数，范围 1-10，默认 5")
+    crawl.add_argument(
+        "--jitter", type=float, default=0.2, help="并发请求随机额外等待上限，默认 0.2 秒"
+    )
 
     clean = subparsers.add_parser("clean", help="检测并保守清洗已经下载的小说")
     clean.add_argument("book_dir", type=Path, help="包含 chapters/ 的小说文件夹")
@@ -170,6 +174,8 @@ def _options(args: argparse.Namespace) -> CrawlOptions:
         force=getattr(args, "force", False),
         deduplicate=not getattr(args, "no_deduplicate", False),
         reverse=getattr(args, "reverse", False),
+        max_workers=max(1, min(10, int(getattr(args, "workers", 5)))),
+        jitter=max(0.0, float(getattr(args, "jitter", 0.2))),
     )
 
 

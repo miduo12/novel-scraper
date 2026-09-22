@@ -28,6 +28,7 @@ class CrawlWorker(QThread):
         end_chapter: int | None = None,
         deduplicate: bool = True,
         reverse: bool = False,
+        max_workers: int = 5,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -39,6 +40,7 @@ class CrawlWorker(QThread):
         self.end_chapter = end_chapter
         self.deduplicate = deduplicate
         self.reverse = reverse
+        self.max_workers = max_workers
         self._cancel_event = threading.Event()
 
     def request_cancel(self) -> None:
@@ -55,6 +57,7 @@ class CrawlWorker(QThread):
             end_chapter=self.end_chapter,
             deduplicate=self.deduplicate,
             reverse=self.reverse,
+            max_workers=self.max_workers,
         )
         try:
             with NovelCrawler.from_url(

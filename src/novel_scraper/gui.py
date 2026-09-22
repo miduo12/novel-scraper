@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -57,6 +58,7 @@ class MainWindow(QMainWindow):
         self.last_output_path: Path | None = None
         self.last_combined_path: Path | None = None
         self._chapter_total = 0
+        self._task_started_at: float | None = None
         self._closing = False
         self._build_ui()
         self._restore_settings()
@@ -127,6 +129,9 @@ class MainWindow(QMainWindow):
         form.addWidget(output_label)
         form.addLayout(output_row)
 
+        performance_row = QHBoxLayout()
+        performance_row.setSpacing(10)
+        speed_box = QVBoxLayout()
         speed_label = QLabel("下载速度")
         speed_label.setObjectName("fieldLabel")
         self.speed_combo = QComboBox()
@@ -136,8 +141,22 @@ class MainWindow(QMainWindow):
         self.speed_combo.addItem("快速（0.2 秒，推荐）", 0.2)
         self.speed_combo.addItem("极速（0.05 秒，谨慎）", 0.05)
         self.speed_combo.setCurrentIndex(1)
-        form.addWidget(speed_label)
-        form.addWidget(self.speed_combo)
+        speed_box.addWidget(speed_label)
+        speed_box.addWidget(self.speed_combo)
+        workers_box = QVBoxLayout()
+        workers_label = QLabel("并发线程")
+        workers_label.setObjectName("fieldLabel")
+        self.workers_combo = QComboBox()
+        self.workers_combo.setObjectName("workersCombo")
+        self.workers_combo.setMinimumHeight(40)
+        for worker_count in (1, 3, 5, 8, 10):
+            self.workers_combo.addItem(str(worker_count), worker_count)
+        self.workers_combo.setCurrentIndex(2)
+        workers_box.addWidget(workers_label)
+        workers_box.addWidget(self.workers_combo)
+        performance_row.addLayout(speed_box, 2)
+        performance_row.addLayout(workers_box, 1)
+        form.addLayout(performance_row)
 
         range_label = QLabel("章节范围")
         range_label.setObjectName("fieldLabel")
@@ -326,6 +345,9 @@ class MainWindow(QMainWindow):
         saved_delay = float(self.settings.value("speed_delay", 0.2))
         speed_index = self.speed_combo.findData(saved_delay)
         self.speed_combo.setCurrentIndex(speed_index if speed_index >= 0 else 1)
+        saved_workers = int(self.settings.value("max_workers", 5))
+        workers_index = self.workers_combo.findData(saved_workers)
+        self.workers_combo.setCurrentIndex(workers_index if workers_index >= 0 else 2)
         self.start_spin.setValue(int(self.settings.value("start_chapter", 1)))
         self.end_spin.setValue(int(self.settings.value("end_chapter", 1)))
         range_enabled = str(self.settings.value("range_enabled", "false")).lower() == "true"
@@ -350,6 +372,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue("last_url", self.url_input.text().strip())
         self.settings.setValue("output_dir", self.output_input.text().strip())
         self.settings.setValue("speed_delay", float(self.speed_combo.currentData()))
+        self.settings.setValue("max_workers", int(self.workers_combo.currentData()))
         self.settings.setValue("range_enabled", self.range_checkbox.isChecked())
         self.settings.setValue("start_chapter", self.start_spin.value())
         self.settings.setValue("end_chapter", self.end_spin.value())
@@ -422,12 +445,14 @@ class MainWindow(QMainWindow):
 
         self._save_settings()
         self.last_output_path = output_dir
+        self._task_started_at = time.monotonic()
         self.open_button.setEnabled(False)
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
         self.url_input.setEnabled(False)
         self.output_input.setEnabled(False)
         self.speed_combo.setEnabled(False)
+        self.workers_combo.setEnabled(False)
         self.range_checkbox.setEnabled(False)
         self.start_spin.setEnabled(False)
         self.end_spin.setEnabled(False)
@@ -450,6 +475,7 @@ class MainWindow(QMainWindow):
             end_chapter=end_chapter,
             deduplicate=self.deduplicate_checkbox.isChecked(),
             reverse=self.reverse_checkbox.isChecked(),
+            max_workers=int(self.workers_combo.currentData()),
             parent=self,
         )
         self.worker.event_received.connect(self._handle_event)
@@ -465,6 +491,15 @@ class MainWindow(QMainWindow):
             self._append_log("已请求停止：将完成当前章节剩余分页")
             self.worker.request_cancel()
 
+    def _progress_text(self, completed: int, total: int) -> str:
+        if self._task_started_at is None or completed <= 0:
+            return f"{completed} / {total}"
+        elapsed = max(0.001, time.monotonic() - self._task_started_at)
+        rate = completed / elapsed * 60
+        remaining = max(0, total - completed)
+        eta_seconds = int(remaining / rate * 60) if rate > 0 else 0
+        return f"{completed} / {total} | {rate:.1f}章/分 | 剩余约 {_format_duration(eta_seconds)}"
+
     def _handle_event(self, event: CrawlEvent) -> None:
         if event.kind == "book_loaded":
             self._configure_chapter_range(
@@ -474,17 +509,31 @@ class MainWindow(QMainWindow):
             )
         if event.book_title:
             self.book_label.setText(f"《{event.book_title}》  作者：{event.author or '未知'}")
-        if event.total > 0:
+        if event.kind == "book_loaded" and event.total > 0:
             self.progress_bar.setRange(0, event.total)
-            self.progress_bar.setValue(min(event.completed, event.total))
-            self.progress_label.setText(f"{event.completed} / {event.total}")
+            self.progress_bar.setValue(0)
+            self.progress_label.setText(f"0 / {event.total}")
+        elif (
+            event.kind
+            in {
+                "chapter_completed",
+                "chapter_skipped",
+                "chapter_duplicate",
+                "chapter_failed",
+                "finished",
+            }
+            and event.total > 0
+        ):
+            completed = min(event.completed, event.total)
+            self.progress_bar.setValue(completed)
+            self.progress_label.setText(self._progress_text(completed, event.total))
 
         if event.kind == "chapter_started":
             self.chapter_label.setText(f"正在下载：{event.chapter_title}")
             self._append_log(f"[{event.completed + 1}/{event.total}] {event.chapter_title}")
         elif event.kind == "page_started":
             self.chapter_label.setText(f"{event.chapter_title} · 第 {event.page} 页")
-            self._append_log(f"    第 {event.page} 页")
+            self._append_log(f"    {event.message}")
         elif event.kind == "chapter_completed":
             self.chapter_label.setText(f"已完成：{event.chapter_title}")
             self._append_log(f"    {event.message}")
@@ -541,6 +590,7 @@ class MainWindow(QMainWindow):
         self.url_input.setEnabled(True)
         self.output_input.setEnabled(True)
         self.speed_combo.setEnabled(True)
+        self.workers_combo.setEnabled(True)
         self.range_checkbox.setEnabled(True)
         self.deduplicate_checkbox.setEnabled(True)
         self.reverse_checkbox.setEnabled(True)
@@ -591,6 +641,16 @@ class MainWindow(QMainWindow):
             return
         self.settings.setValue("window_geometry", self.saveGeometry())
         event.accept()
+
+
+def _format_duration(seconds: int) -> str:
+    if seconds < 60:
+        return f"{seconds}秒"
+    minutes, remainder = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes}分{remainder}秒"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}小时{minutes}分"
 
 
 def build_parser() -> argparse.ArgumentParser:

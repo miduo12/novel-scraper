@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import copy
 import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
 
 from .adapters import SiteAdapter, adapter_for_url
+from .chapter_worker import ChapterFetchResult, ordered_chapter_results
 from .events import CrawlEvent, ProgressCallback
-from .exceptions import CrawlCancelled
-from .http import HttpClient
+from .http import HttpClient, RequestPacer
 from .models import Book, Chapter, CrawlResult
 from .storage import BookStorage
 from .utils import content_hash
@@ -29,6 +31,8 @@ class CrawlOptions:
     force: bool = False
     deduplicate: bool = True
     reverse: bool = False
+    max_workers: int = 5
+    jitter: float = 0.2
 
 
 class NovelCrawler:
@@ -39,12 +43,20 @@ class NovelCrawler:
         *,
         progress_callback: ProgressCallback | None = None,
         cancel_event: Event | None = None,
+        pacer: RequestPacer | None = None,
     ) -> None:
         self.adapter = adapter
         self.options = options
         self.http = adapter.http
         self.progress_callback = progress_callback
         self.cancel_event = cancel_event
+        self.pacer = (
+            pacer
+            or getattr(self.http, "pacer", None)
+            or RequestPacer(options.delay, options.jitter)
+        )
+        self._active_total = 0
+        self._active_failed = 0
 
     @classmethod
     def from_url(
@@ -55,16 +67,20 @@ class NovelCrawler:
         progress_callback: ProgressCallback | None = None,
         cancel_event: Event | None = None,
     ) -> NovelCrawler:
+        pacer = RequestPacer(options.delay, options.jitter)
         http = HttpClient(
             delay=options.delay,
+            jitter=0.0,
             timeout=options.timeout,
             retries=options.retries,
+            pacer=pacer,
         )
         return cls(
             adapter_for_url(url, http),
             options,
             progress_callback=progress_callback,
             cancel_event=cancel_event,
+            pacer=pacer,
         )
 
     def __enter__(self) -> NovelCrawler:  # noqa: PYI034
@@ -164,6 +180,61 @@ class NovelCrawler:
             raise ValueError(f"起始章节超出目录范围，当前共 {total_chapters} 章")
         return book.chapters[start_index - 1 : min(end_index, total_chapters)]
 
+    def _fetch_chapter_in_worker(self, index: int, chapter: Chapter) -> ChapterFetchResult:
+        import threading
+
+        started = time.monotonic()
+        worker_name = threading.current_thread().name
+        worker_http = HttpClient(
+            delay=0.0,
+            jitter=0.0,
+            timeout=self.options.timeout,
+            retries=self.options.retries,
+            pacer=self.pacer,
+        )
+        worker_adapter = copy.copy(self.adapter)
+        worker_adapter.http = worker_http
+        logger.info("[%s] 开始：%s", worker_name, chapter.title)
+        self._emit(
+            "chapter_started",
+            chapter.title,
+            chapter=chapter,
+            completed=index,
+            total=self._active_total,
+            failed=self._active_failed,
+        )
+        try:
+            pages = worker_adapter.fetch_chapter_pages(
+                chapter,
+                self.options.max_pages,
+                on_page=lambda page_number: self._emit(
+                    "page_started",
+                    f"[{worker_name}] 正在下载第 {page_number} 页",
+                    chapter=chapter,
+                    completed=index,
+                    total=self._active_total,
+                    failed=self._active_failed,
+                    page=page_number,
+                ),
+            )
+            return ChapterFetchResult(
+                index=index,
+                chapter=chapter,
+                pages=pages,
+                duration=time.monotonic() - started,
+                worker_name=worker_name,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return ChapterFetchResult(
+                index=index,
+                chapter=chapter,
+                error=str(exc) or exc.__class__.__name__,
+                duration=time.monotonic() - started,
+                worker_name=worker_name,
+            )
+        finally:
+            worker_http.close()
+
     def crawl_book(self, url: str) -> CrawlResult:
         book = self.fetch_book(url)
         total_chapters = len(book.chapters)
@@ -219,19 +290,27 @@ class NovelCrawler:
             last_chapter_number=last_number,
         )
 
+        self._active_total = total
+        self._active_failed = failed
+        pending_chapters: list[Chapter] = []
+        position_by_url: dict[str, int] = {}
+        processed = 0
+
         for position, chapter in enumerate(chapters, start=1):
             if self._cancelled():
                 cancelled = True
                 break
+            position_by_url[chapter.url] = position
             if self.options.deduplicate and chapter.url in state.duplicates:
                 duplicates += 1
+                processed += 1
                 logger.info("[%d/%d] %s，正文重复，跳过", position, total, chapter.title)
                 self._emit(
                     "chapter_duplicate",
                     "与已下载章节正文重复，跳过",
                     book=book,
                     chapter=chapter,
-                    completed=position,
+                    completed=processed,
                     total=total,
                     failed=failed,
                 )
@@ -239,106 +318,101 @@ class NovelCrawler:
             path = storage.chapter_path(chapter)
             if not self.options.force and chapter.url in state.completed and path.exists():
                 skipped += 1
+                processed += 1
                 logger.info("[%d/%d] %s，已存在，跳过", position, total, chapter.title)
                 self._emit(
                     "chapter_skipped",
                     chapter.title,
                     book=book,
                     chapter=chapter,
-                    completed=position,
+                    completed=processed,
+                    total=total,
+                    failed=failed,
+                )
+                continue
+            pending_chapters.append(chapter)
+
+        for result in ordered_chapter_results(
+            pending_chapters,
+            self._fetch_chapter_in_worker,
+            self.options.max_workers,
+            self.cancel_event,
+        ):
+            chapter = result.chapter
+            position = position_by_url[chapter.url]
+            processed += 1
+            if result.error:
+                failed += 1
+                storage.mark_failed(state, chapter, result.error)
+                logger.error(
+                    "[%s] 失败：%s，原因：%s，耗时：%.2f秒",
+                    result.worker_name,
+                    chapter.title,
+                    result.error,
+                    result.duration,
+                )
+                self._emit(
+                    "chapter_failed",
+                    result.error,
+                    book=book,
+                    chapter=chapter,
+                    completed=processed,
                     total=total,
                     failed=failed,
                 )
                 continue
 
-            logger.info("[%d/%d] %s", position, total, chapter.title)
-            self._emit(
-                "chapter_started",
+            pages = result.pages or ()
+            content = "\n\n".join(page.content for page in pages)
+            digest = content_hash(content)
+            if self.options.deduplicate and digest in hash_index:
+                first_title, first_url = hash_index[digest]
+                duplicates += 1
+                storage.mark_duplicate(
+                    state,
+                    chapter,
+                    digest,
+                    first_title,
+                    first_url,
+                )
+                logger.info(
+                    "[%s] 正文与 %s 重复，跳过：%s",
+                    result.worker_name,
+                    first_title,
+                    first_url,
+                )
+                self._emit(
+                    "chapter_duplicate",
+                    f"正文与《{first_title}》重复，跳过",
+                    book=book,
+                    chapter=chapter,
+                    completed=processed,
+                    total=total,
+                    failed=failed,
+                )
+                continue
+
+            storage.save_chapter(chapter, content)
+            if self.options.deduplicate:
+                hash_index[digest] = (chapter.title, chapter.url)
+            storage.mark_completed(state, chapter)
+            completed += 1
+            logger.info(
+                "[%s] 完成：%s，%d页，耗时：%.2f秒",
+                result.worker_name,
                 chapter.title,
+                len(pages),
+                result.duration,
+            )
+            self._emit(
+                "chapter_completed",
+                f"完成，共 {len(pages)} 页",
                 book=book,
                 chapter=chapter,
-                completed=position - 1,
+                completed=processed,
                 total=total,
                 failed=failed,
             )
-            try:
-                pages = self.adapter.fetch_chapter_pages(
-                    chapter,
-                    self.options.max_pages,
-                    on_page=lambda page_number, chapter=chapter, position=position, failed=failed: (
-                        self._emit(
-                            "page_started",
-                            f"正在下载第 {page_number} 页",
-                            book=book,
-                            chapter=chapter,
-                            completed=position - 1,
-                            total=total,
-                            failed=failed,
-                            page=page_number,
-                        )
-                    ),
-                )
-                content = "\n\n".join(page.content for page in pages)
-                digest = content_hash(content)
-                if self.options.deduplicate and digest in hash_index:
-                    first_title, first_url = hash_index[digest]
-                    duplicates += 1
-                    storage.mark_duplicate(
-                        state,
-                        chapter,
-                        digest,
-                        first_title,
-                        first_url,
-                    )
-                    logger.info(
-                        "    正文与 %s 重复，跳过：%s",
-                        first_title,
-                        first_url,
-                    )
-                    self._emit(
-                        "chapter_duplicate",
-                        f"正文与《{first_title}》重复，跳过",
-                        book=book,
-                        chapter=chapter,
-                        completed=position,
-                        total=total,
-                        failed=failed,
-                    )
-                    continue
-                storage.save_chapter(chapter, content)
-                if self.options.deduplicate:
-                    hash_index[digest] = (chapter.title, chapter.url)
-                storage.mark_completed(state, chapter)
-                completed += 1
-                logger.info("    完成，共 %d 页", len(pages))
-                self._emit(
-                    "chapter_completed",
-                    f"完成，共 {len(pages)} 页",
-                    book=book,
-                    chapter=chapter,
-                    completed=position,
-                    total=total,
-                    failed=failed,
-                )
-            except CrawlCancelled:
-                raise
-            except KeyboardInterrupt:
-                raise
-            except Exception as exc:
-                failed += 1
-                reason = str(exc) or exc.__class__.__name__
-                storage.mark_failed(state, chapter, reason)
-                logger.error("    失败：%s", reason)
-                logger.debug("章节抓取异常", exc_info=True)
-                self._emit(
-                    "chapter_failed",
-                    reason,
-                    book=book,
-                    chapter=chapter,
-                    completed=position,
-                    total=total,
-                    failed=failed,
-                )
 
         if self._cancelled():
             cancelled = True
