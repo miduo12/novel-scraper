@@ -2,32 +2,45 @@ from __future__ import annotations
 
 from .base import SiteAdapter
 from .deqixs import DeqixsAdapter
+from .registry import AdapterRegistry
 from .sudugu import SuduguAdapter
 
-_ADAPTERS: tuple[type[SiteAdapter], ...] = (
-    DeqixsAdapter,
-    SuduguAdapter,
-)
+DeqixsAdapter.id = "deqixs"
+DeqixsAdapter.display_name = "得奇小说网"
+DeqixsAdapter.domains = ("deqixs.cc",)
+DeqixsAdapter.example_url = "https://www.deqixs.cc/books/99/"
+SuduguAdapter.id = "sudugu"
+SuduguAdapter.display_name = "速读谷"
+SuduguAdapter.domains = ("sudugu.cc",)
+SuduguAdapter.example_url = "https://www.sudugu.cc/674/"
+
+registry = AdapterRegistry((DeqixsAdapter, SuduguAdapter))
 
 
-def adapter_for_url(url: str, http_client: object) -> SiteAdapter:
-    for adapter_type in _ADAPTERS:
-        if adapter_type.matches(url):
-            return adapter_type(http_client)
+def register(adapter: type[SiteAdapter]) -> type[SiteAdapter]:
+    return registry.register(adapter)
 
-    from ..exceptions import UnsupportedSiteError
 
-    raise UnsupportedSiteError(f"暂不支持该网站：{url}")
+def adapter_for_url(url: str, http_client: object | None = None) -> SiteAdapter:
+    return registry.adapter_for_url(url, http_client)
+
+
+def list_adapters() -> tuple[type[SiteAdapter], ...]:
+    return registry.list_adapters()
 
 
 def is_supported_url(url: str) -> bool:
-    return any(adapter_type.matches(url) for adapter_type in _ADAPTERS)
+    return registry.is_supported_url(url)
 
 
 __all__ = [
+    "AdapterRegistry",
     "DeqixsAdapter",
     "SiteAdapter",
     "SuduguAdapter",
     "adapter_for_url",
     "is_supported_url",
+    "list_adapters",
+    "register",
+    "registry",
 ]

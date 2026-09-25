@@ -31,7 +31,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import __version__
-from .adapters import is_supported_url
+from .adapters import is_supported_url, list_adapters
 from .cleaner_gui import CleanerDialog
 from .events import CrawlEvent
 from .gui_worker import CrawlWorker
@@ -41,6 +41,10 @@ from .utils import extract_url
 
 APP_NAME = "小说下载器"
 APP_ORGANIZATION = "miduo12"
+
+
+def _supported_sites_label() -> str:
+    return "、".join(adapter.display_name or adapter.name for adapter in list_adapters())
 
 
 def resource_path(filename: str) -> Path:
@@ -89,7 +93,7 @@ class MainWindow(QMainWindow):
         title = QLabel(APP_NAME)
         title.setObjectName("title")
         subtitle = QLabel(
-            "粘贴得奇小说网或速读谷的小说链接，一键下载为 TXT。支持断点续传和失败重试。"
+            f"支持网站：{_supported_sites_label()}。粘贴小说链接即可下载为 TXT，支持断点续传和失败重试。"
         )
         subtitle.setObjectName("subtitle")
         subtitle.setWordWrap(True)
@@ -106,9 +110,10 @@ class MainWindow(QMainWindow):
         url_label.setObjectName("fieldLabel")
         self.url_input = QLineEdit()
         self.url_input.setObjectName("urlInput")
-        self.url_input.setPlaceholderText(
-            "例如：https://www.deqixs.cc/books/99/ 或 https://www.sudugu.cc/674/"
+        examples = " 或 ".join(
+            adapter.example_url for adapter in list_adapters() if adapter.example_url
         )
+        self.url_input.setPlaceholderText(f"例如：{examples}" if examples else "粘贴小说目录或章节网址")
         self.url_input.setClearButtonEnabled(True)
         self.url_input.setMinimumHeight(42)
         form.addWidget(url_label)
@@ -427,7 +432,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "网址不正确", "请粘贴完整的小说目录或章节网址。")
             return
         if not is_supported_url(url):
-            QMessageBox.warning(self, "暂不支持", "当前桌面版支持得奇小说网和速读谷。")
+            QMessageBox.warning(self, "暂不支持", f"当前支持：{_supported_sites_label()}。")
             return
 
         try:
