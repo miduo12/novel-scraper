@@ -61,6 +61,12 @@ class GenericAdapter(SiteAdapter):
 
     @staticmethod
     def _find_author(soup) -> str:
+        author_meta = soup.select_one(
+            'meta[property="og:novel:author"], meta[name="author"], meta[name="writer"]'
+        )
+        if author_meta is not None and author_meta.get("content"):
+            return str(author_meta["content"]).strip()
+
         for node in soup.find_all(True):
             attrs = " ".join(
                 [str(node.get("id", "")), " ".join(str(x) for x in node.get("class", []))]
@@ -77,9 +83,11 @@ class GenericAdapter(SiteAdapter):
 
     @staticmethod
     def _find_chapters(soup, source_url: str) -> tuple[Chapter, ...]:
-        source_host = (urlparse(source_url).hostname or "").lower()
-        chapters: list[Chapter] = []
-        seen: set[str] = set()
+        source = urlparse(source_url)
+        source_host = (source.hostname or "").lower()
+        source_path = source.path.rstrip("/")
+        skipped_segments = {"author", "writer", "history", "sort", "search", "category", "login", "register"}
+        anchors = []
         for anchor in soup.select("a[href]"):
             href = str(anchor.get("href", "")).strip()
             title = clean_node_text(anchor)
@@ -91,8 +99,40 @@ class GenericAdapter(SiteAdapter):
                 continue
             if (parsed.hostname or "").lower() != source_host:
                 continue
-            if chapter_url == source_url or not _CHAPTER_HREF.search(parsed.path):
+            path = parsed.path.rstrip("/")
+            if path in {source_path, f"{source_path}.html"}:
                 continue
+            if skipped_segments.intersection(part.lower().split(".", 1)[0] for part in parsed.path.split("/")):
+                continue
+            if not _CHAPTER_HREF.search(parsed.path):
+                continue
+            anchors.append((anchor, title, chapter_url))
+
+        # Prefer the deepest semantic directory/list container. This avoids mixing
+        # navigation and recommendations into a site's chapter catalog.
+        grouped: dict[int, tuple[object, list[tuple[object, str, str]]]] = {}
+        for anchor, title, chapter_url in anchors:
+            for parent in anchor.parents:
+                attrs = " ".join(
+                    [str(parent.get("id", "")), " ".join(str(x) for x in parent.get("class", []))]
+                ).lower()
+                if any(key in attrs for key in ("chapter", "catalog", "list", "directory", "dir")):
+                    entry = grouped.setdefault(id(parent), (parent, []))
+                    entry[1].append((anchor, title, chapter_url))
+
+        selected = anchors
+        if grouped:
+            max_count = max(len(items) for _, items in grouped.values())
+            best_groups = [
+                (node, items) for node, items in grouped.values()
+                if len(items) == max_count
+            ]
+            node, _items = max(best_groups, key=lambda item: len(list(item[0].parents)))
+            selected = [item for item in anchors if node in item[0].parents]
+
+        chapters: list[Chapter] = []
+        seen: set[str] = set()
+        for _anchor, title, chapter_url in selected:
             if chapter_url in seen:
                 continue
             seen.add(chapter_url)

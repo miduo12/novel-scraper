@@ -14,9 +14,12 @@ from novel_scraper.models import Book, Chapter, FetchedPage
 
 BOOK_HTML = """
 <html><head><title>\u6d4b\u8bd5\u5c0f\u8bf4</title></head><body>
-<h1>\u6d4b\u8bd5\u5c0f\u8bf4</h1><div class="author">\u4f5c\u8005\uff1a\u6d4b\u8bd5\u4f5c\u8005</div>
-<div id="catalog"><a href="/chapter/1.html">\u7b2c\u4e00\u7ae0 \u5f00\u59cb</a>
-<a href="/chapter/2.html">\u7b2c\u4e8c\u7ae0 \u7ee7\u7eed</a></div>
+<meta property="og:novel:author" content="\u6b63\u786e\u4f5c\u8005">
+<h1>\u6d4b\u8bd5\u5c0f\u8bf4</h1><div class="author">\u4f5c\u8005\uff1a\u9519\u8bef\u4f5c\u8005</div>
+<div class="list-chapter"><a href="/history.html">\u5386\u53f2</a>
+<a href="/book.html">\u6d4b\u8bd5\u5c0f\u8bf4</a><div class="booklist">
+<a href="/chapter/1.html">\u7b2c\u4e00\u7ae0 \u5f00\u59cb</a>
+<a href="/chapter/2.html">\u7b2c\u4e8c\u7ae0 \u7ee7\u7eed</a></div></div>
 </body></html>
 """
 CHAPTER_HTML = """
@@ -59,7 +62,7 @@ def test_fixture_parses_title_author_and_chapter_links() -> None:
 
     assert isinstance(book, Book)
     assert book.title == "\u6d4b\u8bd5\u5c0f\u8bf4"
-    assert book.author == "\u6d4b\u8bd5\u4f5c\u8005"
+    assert book.author == "\u6b63\u786e\u4f5c\u8005"
     assert len(book.chapters) == 2
     assert all(isinstance(chapter, Chapter) for chapter in book.chapters)
     assert book.chapters[0].url == "https://novel.example/chapter/1.html"
