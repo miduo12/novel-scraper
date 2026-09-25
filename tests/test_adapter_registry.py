@@ -6,6 +6,7 @@ from novel_scraper.adapters import (
     AdapterRegistry,
     BqgAdapter,
     DeqixsAdapter,
+    GenericAdapter,
     SuduguAdapter,
     adapter_for_url,
     list_adapters,
@@ -15,8 +16,8 @@ from novel_scraper.exceptions import UnsupportedSiteError
 
 def test_default_registry_loads_existing_adapters() -> None:
     adapters = list_adapters()
-    assert adapters == (DeqixsAdapter, SuduguAdapter, BqgAdapter)
-    assert {adapter.id for adapter in adapters} == {"deqixs", "sudugu", "bqg"}
+    assert adapters == (DeqixsAdapter, SuduguAdapter, BqgAdapter, GenericAdapter)
+    assert {adapter.id for adapter in adapters} == {"deqixs", "sudugu", "bqg", "generic"}
 
 
 def test_adapter_for_url_selects_deqixs() -> None:
@@ -35,9 +36,17 @@ def test_adapter_for_url_selects_sudugu() -> None:
         adapter.http.close()
 
 
-def test_unknown_url_raises_clear_error() -> None:
+def test_unknown_http_url_selects_generic_adapter() -> None:
+    adapter = adapter_for_url("https://example.org/book/")
+    try:
+        assert isinstance(adapter, GenericAdapter)
+    finally:
+        adapter.http.close()
+
+
+def test_invalid_url_raises_clear_error() -> None:
     with pytest.raises(UnsupportedSiteError, match="暂不支持该网站"):
-        adapter_for_url("https://example.org/book/")
+        adapter_for_url("not a URL")
 
 
 def test_duplicate_registration_is_idempotent_but_conflicting_id_fails() -> None:

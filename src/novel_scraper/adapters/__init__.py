@@ -3,6 +3,7 @@ from __future__ import annotations
 from .base import SiteAdapter
 from .bqg import BqgAdapter
 from .deqixs import DeqixsAdapter
+from .generic import GenericAdapter
 from .registry import AdapterRegistry
 from .sudugu import SuduguAdapter
 
@@ -15,7 +16,7 @@ SuduguAdapter.display_name = "速读谷"
 SuduguAdapter.domains = ("sudugu.cc",)
 SuduguAdapter.example_url = "https://www.sudugu.cc/674/"
 
-registry = AdapterRegistry((DeqixsAdapter, SuduguAdapter, BqgAdapter))
+registry = AdapterRegistry((DeqixsAdapter, SuduguAdapter, BqgAdapter, GenericAdapter))
 
 
 def register(adapter: type[SiteAdapter]) -> type[SiteAdapter]:
@@ -38,6 +39,7 @@ __all__ = [
     "AdapterRegistry",
     "BqgAdapter",
     "DeqixsAdapter",
+    "GenericAdapter",
     "SiteAdapter",
     "SuduguAdapter",
     "adapter_for_url",

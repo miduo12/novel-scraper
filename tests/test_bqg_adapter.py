@@ -95,7 +95,7 @@ def test_fetch_chapter_returns_page_model_and_known_api_token() -> None:
 
 def test_unknown_domain_does_not_match() -> None:
     assert not BqgAdapter.matches("https://notbqg616.cc/book/717/")
-    assert not is_supported_url("https://example.org/book/717/")
+    assert is_supported_url("https://example.org/book/717/")
 
 
 def test_homepage_without_book_id_cannot_be_normalized() -> None:

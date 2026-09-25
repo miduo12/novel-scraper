@@ -40,7 +40,11 @@ class AdapterRegistry:
         url: str,
         http_client: object | None = None,
     ) -> SiteAdapter:
-        for adapter in self._adapters:
+        # Site-specific adapters always get the first chance; generic is a fallback.
+        ordered_adapters = sorted(
+            self._adapters, key=lambda item: bool(getattr(item, "is_fallback", False))
+        )
+        for adapter in ordered_adapters:
             if adapter.matches(url):
                 if http_client is None:
                     from ..http import HttpClient
