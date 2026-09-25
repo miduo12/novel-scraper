@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .base import SiteAdapter
+from .bqg import BqgAdapter
 from .deqixs import DeqixsAdapter
 from .registry import AdapterRegistry
 from .sudugu import SuduguAdapter
@@ -14,7 +15,7 @@ SuduguAdapter.display_name = "速读谷"
 SuduguAdapter.domains = ("sudugu.cc",)
 SuduguAdapter.example_url = "https://www.sudugu.cc/674/"
 
-registry = AdapterRegistry((DeqixsAdapter, SuduguAdapter))
+registry = AdapterRegistry((DeqixsAdapter, SuduguAdapter, BqgAdapter))
 
 
 def register(adapter: type[SiteAdapter]) -> type[SiteAdapter]:
@@ -35,6 +36,7 @@ def is_supported_url(url: str) -> bool:
 
 __all__ = [
     "AdapterRegistry",
+    "BqgAdapter",
     "DeqixsAdapter",
     "SiteAdapter",
     "SuduguAdapter",

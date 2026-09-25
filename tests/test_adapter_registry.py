@@ -4,6 +4,7 @@ import pytest
 
 from novel_scraper.adapters import (
     AdapterRegistry,
+    BqgAdapter,
     DeqixsAdapter,
     SuduguAdapter,
     adapter_for_url,
@@ -14,8 +15,8 @@ from novel_scraper.exceptions import UnsupportedSiteError
 
 def test_default_registry_loads_existing_adapters() -> None:
     adapters = list_adapters()
-    assert adapters == (DeqixsAdapter, SuduguAdapter)
-    assert {adapter.id for adapter in adapters} == {"deqixs", "sudugu"}
+    assert adapters == (DeqixsAdapter, SuduguAdapter, BqgAdapter)
+    assert {adapter.id for adapter in adapters} == {"deqixs", "sudugu", "bqg"}
 
 
 def test_adapter_for_url_selects_deqixs() -> None:
